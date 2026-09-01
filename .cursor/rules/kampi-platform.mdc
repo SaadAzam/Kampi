@@ -1,0 +1,19 @@
+---
+description: Kampi.fun platform engineering conventions
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Kampi.fun platform rules
+
+- TypeScript strict mode with `noUncheckedIndexedAccess`; avoid `any`.
+- Apps import packages only — never import across apps.
+- Server is authoritative for all game and wallet outcomes.
+- Store chips as integers/BigInt; expose as strings in JSON when needed.
+- Every wallet mutation requires a unique idempotency key.
+- Use Zod schemas from `@kampi/contracts` for shared messages and env validation.
+- Do not add real-money, KYC, or cash-out functionality in this phase.
+- Do not hard-code secrets; use `.env` and `.env.example`.
+- Prefer focused changes; match existing patterns in each app/package.
+- Run `pnpm lint`, `pnpm typecheck`, and `pnpm test` before claiming work is done.

@@ -1,0 +1,27 @@
+{
+  "name": "@kampi/game-rps",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kampi/contracts": "workspace:*",
+    "@kampi/game-sdk": "workspace:*",
+    "colyseus.js": "^0.16.16",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@kampi/config": "workspace:*",
+    "eslint": "^9.28.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.3"
+  }
+}

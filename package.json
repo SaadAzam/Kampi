@@ -1,0 +1,28 @@
+{
+  "name": "kampi",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "db:generate": "pnpm --filter @kampi/database db:generate",
+    "db:migrate": "pnpm --filter @kampi/database db:migrate",
+    "db:seed": "pnpm --filter @kampi/database db:seed",
+    "db:push": "pnpm --filter @kampi/database db:push",
+    "postinstall": "node scripts/patch-colyseus-greeting.mjs"
+  },
+  "devDependencies": {
+    "@kampi/config": "workspace:*",
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

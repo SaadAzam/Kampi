@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum WalletLedgerType {
+  STARTING_BALANCE
+  MATCH_ENTRY
+  MATCH_REFUND
+  MATCH_PAYOUT
+  PURCHASE_CREDIT
+  ADMIN_ADJUSTMENT
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PurchaseProvider {
+  STRIPE
+  APPLE
+  GOOGLE
+  MANUAL
+}
+
+enum GameStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MatchStatus {
+  WAITING
+  ACTIVE
+  RESOLVING
+  FINISHED
+  ABORTED
+}
+
+enum MatchPlayerKind {
+  HUMAN
+  BOT
+}
+
+enum MatchPlayerResult {
+  WIN
+  LOSS
+  DRAW
+  ABORTED
+}
+
+enum MatchmakingTicketStatus {
+  QUEUED
+  MATCHED
+  CANCELLED
+  EXPIRED
+}
+
+enum MatchEventType {
+  MATCH_CREATED
+  PLAYER_JOINED
+  BOT_FILLED
+  ROUND_STARTED
+  CHOICE_SUBMITTED
+  ROUND_RESOLVED
+  MATCH_FINISHED
+  MATCH_ABORTED
+  RECONNECT
+  DISCONNECT
+}
+
+enum AuditAction {
+  USER_CREATED
+  SESSION_CREATED
+  WALLET_MUTATION
+  MATCH_FINALIZED
+  PURCHASE_CREATED
+  ADMIN_ACTION
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  displayName  String
+  email        String?    @unique
+  status       UserStatus @default(ACTIVE)
+  isGuest      Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sessions           Session[]
+  wallet             Wallet?
+  purchases          Purchase[]
+  matchPlayers       MatchPlayer[]
+  matchmakingTickets MatchmakingTicket[]
+  progression        PlayerProgression[]
+  leaderboardEntries LeaderboardEntry[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+
+  @@index([status])
+}
+
+model Session {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  tokenHash String        @unique
+  status    SessionStatus @default(ACTIVE)
+  expiresAt DateTime
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model Wallet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  balance   BigInt   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries WalletLedgerEntry[]
+
+  @@index([userId])
+}
+
+model WalletLedgerEntry {
+  id             String           @id @default(uuid()) @db.Uuid
+  walletId       String           @db.Uuid
+  type           WalletLedgerType
+  amount         BigInt
+  balanceAfter   BigInt
+  idempotencyKey String           @unique
+  matchId        String?          @db.Uuid
+  purchaseId     String?          @db.Uuid
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  wallet   Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  match    Match?    @relation(fields: [matchId], references: [id])
+  purchase Purchase? @relation(fields: [purchaseId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@index([matchId])
+}
+
+model Purchase {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  provider       PurchaseProvider
+  status         PurchaseStatus   @default(PENDING)
+  chipsAmount    BigInt
+  currencyCode   String?
+  externalRef    String?
+  idempotencyKey String           @unique
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries WalletLedgerEntry[]
+
+  @@index([userId, status])
+}
+
+model Game {
+  id          String     @id @default(uuid()) @db.Uuid
+  slug        String     @unique
+  name        String
+  status      GameStatus @default(DRAFT)
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  versions           GameVersion[]
+  matches            Match[]
+  matchmakingTickets MatchmakingTicket[]
+  leaderboardEntries LeaderboardEntry[]
+}
+
+model GameVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  gameId       String   @db.Uuid
+  version      String
+  config       Json
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, version])
+  @@index([gameId, isActive])
+}
+
+model Match {
+  id               String      @id @default(uuid()) @db.Uuid
+  gameId           String      @db.Uuid
+  status           MatchStatus @default(WAITING)
+  roomId           String?
+  entryFee         BigInt
+  winnerPayout     BigInt
+  bestOf           Int         @default(3)
+  botFill          Boolean     @default(false)
+  finalizedAt      DateTime?
+  payoutLedgerKey  String?     @unique
+  abortRefundKey   String?     @unique
+  winnerPlayerId   String?     @db.Uuid
+  abortReason      String?
+  metadata         Json?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  game          Game                @relation(fields: [gameId], references: [id])
+  players       MatchPlayer[]
+  events        MatchEvent[]
+  ledgerEntries WalletLedgerEntry[]
+
+  @@index([gameId, status])
+  @@index([status, createdAt])
+}
+
+model MatchPlayer {
+  id           String            @id @default(uuid()) @db.Uuid
+  matchId      String            @db.Uuid
+  userId       String?           @db.Uuid
+  slot         Int
+  kind         MatchPlayerKind   @default(HUMAN)
+  displayName  String
+  score        Int               @default(0)
+  result       MatchPlayerResult?
+  entryFeeKey  String            @unique
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  match Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, slot])
+  @@index([userId])
+}
+
+model MatchEvent {
+  id        String         @id @default(uuid()) @db.Uuid
+  matchId   String         @db.Uuid
+  type      MatchEventType
+  payload   Json
+  createdAt DateTime       @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+}
+
+model MatchmakingTicket {
+  id        String                  @id @default(uuid()) @db.Uuid
+  userId    String                  @db.Uuid
+  gameId    String                  @db.Uuid
+  status    MatchmakingTicketStatus @default(QUEUED)
+  matchId   String?                 @db.Uuid
+  expiresAt DateTime?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@index([gameId, status, createdAt])
+  @@index([userId, status])
+}
+
+model PlayerProgression {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  gameId    String   @db.Uuid
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  wins      Int      @default(0)
+  losses    Int      @default(0)
+  draws     Int      @default(0)
+  metadata  Json?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+}
+
+model LeaderboardEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  gameId    String   @db.Uuid
+  userId    String   @db.Uuid
+  score     Int      @default(0)
+  rank      Int?
+  periodKey String
+  metadata  Json?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  game Game @relation(fields: [gameId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId, periodKey])
+  @@index([gameId, periodKey, score])
+}
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  action     AuditAction
+  actorId    String?     @db.Uuid
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

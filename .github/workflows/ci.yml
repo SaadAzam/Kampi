@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kampi
+          POSTGRES_PASSWORD: kampi_dev
+          POSTGRES_DB: kampi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kampi -d kampi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://kampi:kampi_dev@localhost:5432/kampi?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-jwt-secret-minimum-32-characters-long
+      WEB_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3001
+      API_PUBLIC_URL: http://localhost:4000
+      REALTIME_PUBLIC_URL: ws://localhost:2567
+      GAME_RPS_PUBLIC_URL: http://localhost:5173
+      DEV_GUEST_AUTH_ENABLED: 'true'
+      STARTING_CHIPS: '10000'
+      RPS_ENTRY_FEE: '500'
+      RPS_WINNER_PAYOUT: '950'
+      BOT_FILL_AFTER_MS: '10000'
+      RECONNECT_GRACE_MS: '30000'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Run migrations
+        run: pnpm db:migrate
+
+      - name: Seed database
+        run: pnpm db:seed
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
