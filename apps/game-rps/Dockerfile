@@ -5,6 +5,7 @@ RUN corepack enable
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/game-rps/package.json apps/game-rps/
+COPY packages/colyseus-greeting-shim/package.json packages/colyseus-greeting-shim/
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/game-sdk/package.json packages/game-sdk/

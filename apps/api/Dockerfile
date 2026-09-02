@@ -5,6 +5,7 @@ RUN corepack enable
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json apps/api/
+COPY packages/colyseus-greeting-shim/package.json packages/colyseus-greeting-shim/
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/database/package.json packages/database/

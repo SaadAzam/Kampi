@@ -27,7 +27,7 @@ function hashToken(token: string): string {
 export class AuthGuard implements CanActivate {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly config: AppConfigService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

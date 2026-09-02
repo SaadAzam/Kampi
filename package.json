@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "dev:reset": "bash scripts/restart-dev.sh",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

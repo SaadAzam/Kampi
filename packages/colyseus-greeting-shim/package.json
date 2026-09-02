@@ -1,0 +1,13 @@
+{
+  "name": "@colyseus/greeting-banner",
+  "version": "2.0.0-shim",
+  "private": true,
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "default": "./index.mjs"
+    }
+  }
+}

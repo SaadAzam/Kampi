@@ -146,7 +146,7 @@ export class GameScene extends Phaser.Scene {
 
   private async joinQueue() {
     if (!this.client) return;
-    this.ui.queue = 'Joining queue…';
+    this.ui.queue = 'Joining Saad queue…';
     this.ui.status = 'Searching for opponent';
     this.refreshUi();
 
