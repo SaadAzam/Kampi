@@ -3,6 +3,14 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 const API_URL = process.env.API_PUBLIC_URL ?? 'http://localhost:4000';
 const GAME_URL = process.env.GAME_PENALTY_PUBLIC_URL ?? 'http://localhost:5174';
 
+type PenaltyTestApi = {
+  findMatch: () => void;
+  createPrivate: () => void;
+  joinPrivate: () => void;
+  submitLeft: () => void;
+  submitRight: () => void;
+};
+
 async function createGuest(): Promise<{ token: string; userId: string; displayName: string }> {
   const response = await fetch(`${API_URL}/auth/guest`, { method: 'POST' });
   if (!response.ok) {
@@ -13,6 +21,24 @@ async function createGuest(): Promise<{ token: string; userId: string; displayNa
     user: { id: string; displayName: string };
   };
   return { token: body.token, userId: body.user.id, displayName: body.user.displayName };
+}
+
+async function waitForGameApi(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => Boolean((window as unknown as { __kampiPenalty?: unknown }).__kampiPenalty)),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+}
+
+async function callGame(page: Page, method: keyof PenaltyTestApi) {
+  await page.evaluate((name) => {
+    const api = (window as unknown as { __kampiPenalty?: PenaltyTestApi }).__kampiPenalty;
+    if (!api) throw new Error('Penalty test API not ready');
+    api[name]();
+  }, method);
 }
 
 async function openPlayer(browser: Browser, token: string, userId: string): Promise<Page> {
@@ -26,7 +52,7 @@ async function openPlayer(browser: Browser, token: string, userId: string): Prom
     { authToken: token, id: userId },
   );
   await page.goto(GAME_URL);
-  await page.waitForSelector('[data-testid="find-match"]');
+  await waitForGameApi(page);
   await page.evaluate((id) => {
     const el = document.querySelector('[data-testid="player-id"]');
     if (el) el.textContent = id;
@@ -45,13 +71,13 @@ async function playTurn(page: Page) {
   const seat = ((await page.getByTestId('seat').textContent()) ?? '').trim();
   const role = ((await page.getByTestId('role').textContent()) ?? '').trim();
   if (role.includes('KICKER')) {
-    await page.getByTestId('action-left').click();
+    await callGame(page, 'submitLeft');
     return;
   }
   if (role.includes('GOALKEEPER')) {
     // Seat A saves opponent kicks; seat B fails to save → A wins regulation 3-0
-    if (seat === 'A') await page.getByTestId('action-left').click();
-    else await page.getByTestId('action-right').click();
+    if (seat === 'A') await callGame(page, 'submitLeft');
+    else await callGame(page, 'submitRight');
   }
 }
 
@@ -73,8 +99,8 @@ test.describe('Penalty Duel two-player', () => {
     const pageA = await openPlayer(browser, guestA.token, guestA.userId);
     const pageB = await openPlayer(browser, guestB.token, guestB.userId);
 
-    await pageA.getByTestId('find-match').click();
-    await pageB.getByTestId('find-match').click();
+    await callGame(pageA, 'findMatch');
+    await callGame(pageB, 'findMatch');
 
     const matchA = await waitForMatch(pageA);
     const matchB = await waitForMatch(pageB);

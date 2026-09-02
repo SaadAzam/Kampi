@@ -76,7 +76,7 @@ export class GameScene extends Phaser.Scene {
     this.drawStadium();
     this.createHud();
     this.createControls();
-    this.wireDomControls();
+    this.exposeTestApi();
     this.setupEmbed();
     void this.bootstrapAuth();
   }
@@ -86,22 +86,16 @@ export class GameScene extends Phaser.Scene {
     if (el) el.textContent = value;
   }
 
-  private wireDomControls() {
-    document.querySelector('[data-testid="find-match"]')?.addEventListener('click', () => {
-      void this.findMatch();
-    });
-    document.querySelector('[data-testid="create-private"]')?.addEventListener('click', () => {
-      void this.createPrivate();
-    });
-    document.querySelector('[data-testid="join-private"]')?.addEventListener('click', () => {
-      void this.joinPrivate();
-    });
-    document.querySelector('[data-testid="action-left"]')?.addEventListener('click', () => {
-      this.submit('LEFT');
-    });
-    document.querySelector('[data-testid="action-right"]')?.addEventListener('click', () => {
-      this.submit('RIGHT');
-    });
+  /** Playwright hooks — no visible DOM controls; Phaser buttons are the UI. */
+  private exposeTestApi() {
+    const api = {
+      findMatch: () => void this.findMatch(),
+      createPrivate: () => void this.createPrivate(),
+      joinPrivate: () => void this.joinPrivate(),
+      submitLeft: () => this.submit('LEFT'),
+      submitRight: () => this.submit('RIGHT'),
+    };
+    (window as unknown as { __kampiPenalty?: typeof api }).__kampiPenalty = api;
   }
 
   override update() {

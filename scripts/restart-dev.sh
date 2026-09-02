@@ -141,18 +141,37 @@ wait_for_container() {
   exit 1
 }
 
-wait_for_http() {
-  local url="$1"
+wait_for_port() {
+  local port="$1"
   local label="$2"
+  local attempts="${3:-90}"
   local i
-  for i in $(seq 1 90); do
-    if curl -sf "$url" >/dev/null 2>&1; then
+  for i in $(seq 1 "$attempts"); do
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
       printf '    ✓ %s\n' "$label"
       return 0
     fi
     sleep 1
   done
-  printf '    ✗ %s (not ready after 90s)\n' "$label" >&2
+  printf '    ✗ %s (not listening on :%s after %ss)\n' "$label" "$port" "$attempts" >&2
+  return 1
+}
+
+wait_for_http() {
+  local url="$1"
+  local label="$2"
+  local attempts="${3:-90}"
+  local i code
+  for i in $(seq 1 "$attempts"); do
+    # Prefer 127.0.0.1 to avoid flaky IPv6 localhost resolution.
+    code="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 1 "$url" 2>/dev/null || true)"
+    if [[ "$code" =~ ^[12345][0-9][0-9]$ ]]; then
+      printf '    ✓ %s (HTTP %s)\n' "$label" "$code"
+      return 0
+    fi
+    sleep 1
+  done
+  printf '    ✗ %s (not ready after %ss)\n' "$label" "$attempts" >&2
   return 1
 }
 
@@ -161,17 +180,17 @@ print_service_urls() {
 
   Kampi local stack
   ─────────────────────────────────────────
-  Web (lobby)     http://localhost:3000
-  Admin           http://localhost:3001
-  API             http://localhost:4000
-  API health      http://localhost:4000/health/live
-  API docs        http://localhost:4000/docs
-  Realtime        ws://localhost:2567
-  RPS game        http://localhost:5173
-  Penalty Duel    http://localhost:5174
+  Web (lobby)     http://127.0.0.1:3000
+  Admin           http://127.0.0.1:3001
+  API             http://127.0.0.1:4000
+  API health      http://127.0.0.1:4000/health/live
+  API docs        http://127.0.0.1:4000/docs
+  Realtime        ws://127.0.0.1:2567
+  RPS game        http://127.0.0.1:5173
+  Penalty Duel    http://127.0.0.1:5174
   ─────────────────────────────────────────
   Two-player test: open Penalty or RPS in two browser profiles, or use
-  POST http://localhost:4000/auth/guest for distinct guest tokens.
+  POST http://127.0.0.1:4000/auth/guest for distinct guest tokens.
 
 EOF
 }
@@ -210,21 +229,45 @@ main() {
   log "Seeding database"
   pnpm db:seed
 
-  log "Starting all apps (turbo dev)"
+  log "Starting app servers (turbo --filter=./apps/*)"
   print_service_urls
 
+  # Apps only — package tsc --watch tasks used to fill Turbo's CPU concurrency
+  # slots and leave @kampi/web queued forever on some machines.
   pnpm dev &
   DEV_PID=$!
 
   log "Waiting for core services"
-  wait_for_http "http://localhost:4000/health/live" "API http://localhost:4000" || true
-  wait_for_http "http://localhost:2567/health/ready" "Realtime ws://localhost:2567" || true
-  wait_for_http "http://localhost:3000/" "Web http://localhost:3000" || true
-  wait_for_http "http://localhost:5173/" "RPS http://localhost:5173" || true
-  wait_for_http "http://localhost:5174/" "Penalty Duel http://localhost:5174" || true
+  local api_ok=0
+  local realtime_ok=0
+  local web_ok=0
+  local rps_ok=0
+  local penalty_ok=0
+  local admin_ok=0
 
-  log "Stack ready — open the lobby:"
-  print_service_urls
+  wait_for_http "http://127.0.0.1:4000/health/live" "API http://127.0.0.1:4000" 90 && api_ok=1 || true
+  wait_for_http "http://127.0.0.1:2567/health/ready" "Realtime ws://127.0.0.1:2567" 90 && realtime_ok=1 || true
+  wait_for_http "http://127.0.0.1:3000/" "Web http://127.0.0.1:3000" 120 && web_ok=1 || true
+  wait_for_http "http://127.0.0.1:3001/" "Admin http://127.0.0.1:3001" 90 && admin_ok=1 || true
+  wait_for_http "http://127.0.0.1:5173/" "RPS http://127.0.0.1:5173" 90 && rps_ok=1 || true
+  wait_for_http "http://127.0.0.1:5174/" "Penalty Duel http://127.0.0.1:5174" 90 && penalty_ok=1 || true
+
+  if (( web_ok == 0 )); then
+    log "Web lobby missing — starting @kampi/web directly as fallback"
+    pnpm --filter @kampi/web dev &
+    wait_for_http "http://127.0.0.1:3000/" "Web http://127.0.0.1:3000" 60 && web_ok=1 || true
+  fi
+
+  if (( api_ok == 1 && realtime_ok == 1 && web_ok == 1 )); then
+    log "Stack ready — open the lobby:"
+    print_service_urls
+  else
+    log "Stack is PARTIAL — lobby may not work"
+    echo "    api=${api_ok} realtime=${realtime_ok} web=${web_ok} admin=${admin_ok} rps=${rps_ok} penalty=${penalty_ok}"
+    print_service_urls
+    echo "    Tip: stop this process (Ctrl+C) and re-run: pnpm dev:reset" >&2
+    echo "    Or start the lobby alone: pnpm --filter @kampi/web dev" >&2
+  fi
 
   wait "$DEV_PID"
 }

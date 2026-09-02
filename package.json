@@ -6,7 +6,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev --parallel --concurrency=25 --filter=./apps/*",
+    "dev:all": "turbo run dev --parallel --concurrency=25",
     "dev:reset": "bash scripts/restart-dev.sh",
     "build": "turbo run build",
     "lint": "turbo run lint",

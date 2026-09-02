@@ -33,6 +33,14 @@ All apps:
 pnpm dev
 ```
 
+This starts **apps only** (web, admin, api, realtime, game clients). Packages are built beforehand by `pnpm dev:reset`.
+
+To also run package TypeScript watchers:
+
+```bash
+pnpm dev:all
+```
+
 Individual apps:
 
 ```bash
