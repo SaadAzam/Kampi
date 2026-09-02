@@ -60,10 +60,15 @@ WAITING → ACTIVE → RESOLVING → FINISHED
 
 ## Packages
 
-- `@kampi/contracts` — Zod schemas, RPS resolver, env parsing
+- `@kampi/contracts` — Zod schemas, shared env parsing, legacy RPS helpers
 - `@kampi/database` — Prisma client
 - `@kampi/domain` — wallet mutations, purchase provider interface
-- `@kampi/game-sdk` — embed protocol
+- `@kampi/game-sdk` — modular game SDK (`common` / `client` / `server` / `embed` / `testing`)
+- `@kampi/game-rps-core` — RPS manifest + schemas (pure)
+- `@kampi/game-penalty` — Penalty Duel rules (pure)
+- `@kampi/config` — shared TS/ESLint/Prettier
+
+Game clients: `apps/game-rps` (5173), `apps/game-penalty` (5174). See [game-sdk.md](./game-sdk.md) and [penalty-duel.md](./penalty-duel.md).
 
 ## Future real-money phase
 

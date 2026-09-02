@@ -13,14 +13,33 @@ import { AppConfigService } from './config/app-config.service.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { CorrelationIdMiddleware } from './common/correlation-id.middleware.js';
 
+function originFromUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn'],
   });
 
   const config = app.get(AppConfigService);
+  const corsOrigins = [
+    ...new Set(
+      [
+        config.webOrigin,
+        config.adminOrigin,
+        originFromUrl(process.env.GAME_RPS_PUBLIC_URL),
+        originFromUrl(process.env.GAME_PENALTY_PUBLIC_URL),
+      ].filter((origin): origin is string => Boolean(origin)),
+    ),
+  ];
   app.enableCors({
-    origin: [config.webOrigin, config.adminOrigin].filter(Boolean),
+    origin: corsOrigins,
     credentials: true,
   });
 

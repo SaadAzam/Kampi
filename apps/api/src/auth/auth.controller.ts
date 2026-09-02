@@ -20,7 +20,7 @@ import { CurrentUser } from './current-user.decorator.js';
 export class AuthController {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly config: AppConfigService,
+    @Inject(AppConfigService) private readonly config: AppConfigService,
   ) {}
 
   @Post('guest')

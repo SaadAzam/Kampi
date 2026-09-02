@@ -1,0 +1,22 @@
+{
+  "name": "@kampi/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "mkdir -p dist && echo ok > dist/.keep"
+  },
+  "devDependencies": {
+    "@kampi/config": "workspace:*",
+    "@playwright/test": "^1.51.1",
+    "@types/node": "^22.15.30",
+    "colyseus.js": "^0.16.16",
+    "eslint": "^9.28.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.3"
+  }
+}

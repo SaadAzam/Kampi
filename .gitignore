@@ -31,6 +31,10 @@ Thumbs.db
 
 # Test coverage
 coverage/
+test-results/
+playwright-report/
+apps/e2e/test-results/
+apps/e2e/playwright-report/
 
 # Prisma
 packages/database/prisma/*.db

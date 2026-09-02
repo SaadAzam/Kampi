@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PrismaClient, WalletLedgerType } from '@kampi/database';
+import { Prisma, PrismaClient, WalletLedgerType } from '@kampi/database';
 import {
   mutateWallet,
   finalizeMatchPayout,
@@ -75,9 +75,11 @@ function createMockPrisma() {
           };
         }) => {
           if (ledger.has(data.idempotencyKey)) {
-            const error = new Error('unique constraint') as Error & { code: string };
-            error.code = 'P2002';
-            throw error;
+            throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+              code: 'P2002',
+              clientVersion: 'test',
+              meta: { target: ['idempotencyKey'] },
+            });
           }
           const entry = {
             id: `l-${++ledgerCounter}`,
@@ -129,6 +131,36 @@ describe('mutateWallet idempotency', () => {
     expect(first.duplicate).toBe(false);
     expect(second.duplicate).toBe(true);
     expect(second.balance).toBe(first.balance);
+  });
+
+  it('resolves duplicate after unique constraint race outside aborted transaction', async () => {
+    const { prisma, wallets, ledger } = createMockPrisma();
+    wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 10000n });
+
+    ledger.set('entry:race:u-1', {
+      id: 'l-race',
+      balanceAfter: 9500n,
+      idempotencyKey: 'entry:race:u-1',
+    });
+
+    vi.spyOn(prisma.walletLedgerEntry, 'create').mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['idempotencyKey'] },
+      }),
+    );
+
+    const result = await mutateWallet(prisma, {
+      userId: 'u-1',
+      amount: -500n,
+      type: WalletLedgerType.MATCH_ENTRY,
+      idempotencyKey: 'entry:race:u-1',
+    });
+
+    expect(result.duplicate).toBe(true);
+    expect(result.balance).toBe(9500n);
+    expect(result.ledgerEntryId).toBe('l-race');
   });
 
   it('throws on insufficient funds', async () => {

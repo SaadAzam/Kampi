@@ -23,6 +23,7 @@ export type MatchPlayerKind = z.infer<typeof MatchPlayerKindSchema>;
 
 export const GAME_SLUGS = {
   RPS: 'rock-paper-scissors',
+  PENALTY: 'penalty-duel',
 } as const;
 
 export const EconomyConfigSchema = z.object({

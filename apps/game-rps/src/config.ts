@@ -1,9 +1,9 @@
-const REALTIME_URL = import.meta.env.VITE_REALTIME_PUBLIC_URL ?? 'ws://localhost:2567';
 const AUTH_TOKEN =
-  new URLSearchParams(window.location.search).get('token') ??
-  'dev-guest-token-kampi-local-only';
+  typeof sessionStorage !== 'undefined' && sessionStorage.getItem('kampi.authToken')
+    ? sessionStorage.getItem('kampi.authToken')!
+    : 'dev-guest-token-kampi-local-only';
 
 export const runtimeConfig = {
-  realtimeUrl: REALTIME_URL,
+  realtimeUrl: import.meta.env.VITE_REALTIME_PUBLIC_URL ?? 'ws://localhost:2567',
   authToken: AUTH_TOKEN,
 };

@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HostEmbedController } from '@kampi/game-sdk';
+import { HostEmbedController } from '@kampi/game-sdk/embed';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const GAME_URL = process.env.NEXT_PUBLIC_GAME_RPS_URL ?? 'http://localhost:5173';
-const AUTH_TOKEN = 'dev-guest-token-kampi-local-only';
 
 type Player = {
   id: string;
@@ -13,60 +11,78 @@ type Player = {
   balance: string;
 };
 
-type GameConfig = {
+type GameCard = {
+  id: string;
   slug: string;
   name: string;
+  description: string | null;
+  clientUrl: string;
   entryFee: string;
   winnerPayout: string;
-  bestOf: number;
-  botFillAfterMs: number;
 };
 
 export default function HomePage() {
   const [player, setPlayer] = useState<Player | null>(null);
-  const [game, setGame] = useState<GameConfig | null>(null);
+  const [token, setToken] = useState('');
+  const [games, setGames] = useState<GameCard[]>([]);
   const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
-  const [showGame, setShowGame] = useState(false);
+  const [activeGame, setActiveGame] = useState<GameCard | null>(null);
   const [embedMessage, setEmbedMessage] = useState('');
 
   useEffect(() => {
-    void loadData();
+    void bootstrap();
   }, []);
 
-  async function loadData() {
+  async function bootstrap() {
     try {
-      const [playerRes, gameRes, healthRes] = await Promise.all([
+      const guestRes = await fetch(`${API_URL}/auth/guest`, { method: 'POST' });
+      let authToken = '';
+      if (guestRes.ok) {
+        const guest = (await guestRes.json()) as { token: string };
+        authToken = guest.token;
+        setToken(authToken);
+      } else {
+        authToken = 'dev-guest-token-kampi-local-only';
+        setToken(authToken);
+      }
+
+      const [playerRes, gamesRes, healthRes] = await Promise.all([
         fetch(`${API_URL}/players/me`, {
-          headers: { Authorization: `Bearer ${AUTH_TOKEN}` },
+          headers: { Authorization: `Bearer ${authToken}` },
         }),
-        fetch(`${API_URL}/games/rock-paper-scissors/config`),
+        fetch(`${API_URL}/games`),
         fetch(`${API_URL}/health/live`),
       ]);
 
       if (playerRes.ok) setPlayer(await playerRes.json());
-      if (gameRes.ok) setGame(await gameRes.json());
+      if (gamesRes.ok) {
+        const body = (await gamesRes.json()) as { games: GameCard[] };
+        setGames(body.games);
+      }
       setConnection(healthRes.ok ? 'online' : 'offline');
     } catch {
       setConnection('offline');
     }
   }
 
-  function openGame() {
-    setShowGame(true);
+  function openGame(game: GameCard) {
+    setActiveGame(game);
     setTimeout(() => {
-      const iframe = document.getElementById('rps-frame') as HTMLIFrameElement | null;
-      if (!iframe?.contentWindow) return;
+      const iframe = document.getElementById('game-frame') as HTMLIFrameElement | null;
+      if (!iframe?.contentWindow || !token) return;
+      const origin = new URL(game.clientUrl).origin;
       const controller = new HostEmbedController({
         targetWindow: iframe.contentWindow,
-        targetOrigin: new URL(GAME_URL).origin,
-        allowedOrigins: [new URL(GAME_URL).origin],
+        targetOrigin: origin,
+        allowedOrigins: [origin],
         onMessage: (message) => {
           setEmbedMessage(`${message.type}${'matchId' in message ? `: ${message.matchId}` : ''}`);
-          if (message.type === 'balance_changed') void loadData();
+          if (message.type === 'balance_changed') void bootstrap();
         },
       });
-      controller.sendSession(AUTH_TOKEN, player?.id);
-    }, 500);
+      controller.send({ type: 'host_ready', protocolVersion: '1.0.0' });
+      controller.sendSession(token, player?.id);
+    }, 600);
   }
 
   return (
@@ -82,8 +98,11 @@ export default function HomePage() {
         <div className="grid-2" style={{ marginTop: 12 }}>
           <div className="card">
             <h2>Player</h2>
-            <p>{player?.displayName ?? 'Dev Player'}</p>
+            <p>{player?.displayName ?? 'Guest'}</p>
             <p>Balance: {player?.balance ?? '…'} chips</p>
+            <button type="button" onClick={() => void bootstrap()} style={{ marginTop: 8 }}>
+              New guest identity
+            </button>
           </div>
           <div className="card">
             <h2>Progression</h2>
@@ -94,20 +113,20 @@ export default function HomePage() {
 
       <section className="card">
         <h2>Games</h2>
-        {game ? (
-          <article style={{ marginTop: 12 }}>
-            <h3>{game.name}</h3>
-            <p>
-              Entry {game.entryFee} · Win {game.winnerPayout} · Best of {game.bestOf}
-            </p>
-            <p>Bot fills after {Math.round(game.botFillAfterMs / 1000)}s</p>
-            <button type="button" onClick={openGame} style={{ marginTop: 8 }}>
-              Play RPS
-            </button>
-          </article>
-        ) : (
-          <p>Loading game config…</p>
-        )}
+        <div className="grid-2" style={{ marginTop: 12 }}>
+          {games.map((game) => (
+            <article key={game.id}>
+              <h3>{game.name}</h3>
+              <p>{game.description}</p>
+              <p>
+                Entry {game.entryFee} · Win {game.winnerPayout}
+              </p>
+              <button type="button" onClick={() => openGame(game)} style={{ marginTop: 8 }}>
+                Play {game.name}
+              </button>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="card">
@@ -115,15 +134,15 @@ export default function HomePage() {
         <p>Placeholder — weekly leaderboard coming soon</p>
       </section>
 
-      {showGame ? (
+      {activeGame ? (
         <section className="card">
-          <h2>Rock Paper Scissors</h2>
+          <h2>{activeGame.name}</h2>
           {embedMessage ? <p>Embed: {embedMessage}</p> : null}
           <iframe
-            id="rps-frame"
+            id="game-frame"
             className="game-frame"
-            src={`${GAME_URL}?token=${encodeURIComponent(AUTH_TOKEN)}`}
-            title="Rock Paper Scissors"
+            src={activeGame.clientUrl}
+            title={activeGame.name}
             allow="fullscreen"
           />
         </section>

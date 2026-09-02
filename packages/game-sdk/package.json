@@ -11,6 +11,26 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./common": {
+      "types": "./dist/common/index.d.ts",
+      "import": "./dist/common/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./embed": {
+      "types": "./dist/embed/index.d.ts",
+      "import": "./dist/embed/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     }
   },
   "scripts": {
@@ -21,12 +41,23 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@kampi/contracts": "workspace:*"
+    "@kampi/contracts": "workspace:*",
+    "colyseus.js": "^0.16.16",
+    "zod": "^3.25.51"
   },
   "devDependencies": {
     "@kampi/config": "workspace:*",
+    "@types/node": "^22.15.30",
     "eslint": "^9.28.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.3"
+  },
+  "peerDependencies": {
+    "@colyseus/core": "^0.16.0"
+  },
+  "peerDependenciesMeta": {
+    "@colyseus/core": {
+      "optional": true
+    }
   }
 }

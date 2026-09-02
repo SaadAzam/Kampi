@@ -1,0 +1,26 @@
+{
+  "name": "@kampi/game-penalty-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 5174",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kampi/game-penalty": "workspace:*",
+    "@kampi/game-sdk": "workspace:*",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@kampi/config": "workspace:*",
+    "eslint": "^9.28.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.3"
+  }
+}

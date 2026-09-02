@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-PORTS=(3000 3001 4000 2567 5173)
+PORTS=(3000 3001 4000 2567 5173 5174)
 
 log() { printf '\n==> %s\n' "$*"; }
 
@@ -141,6 +141,41 @@ wait_for_container() {
   exit 1
 }
 
+wait_for_http() {
+  local url="$1"
+  local label="$2"
+  local i
+  for i in $(seq 1 90); do
+    if curl -sf "$url" >/dev/null 2>&1; then
+      printf '    ✓ %s\n' "$label"
+      return 0
+    fi
+    sleep 1
+  done
+  printf '    ✗ %s (not ready after 90s)\n' "$label" >&2
+  return 1
+}
+
+print_service_urls() {
+  cat <<'EOF'
+
+  Kampi local stack
+  ─────────────────────────────────────────
+  Web (lobby)     http://localhost:3000
+  Admin           http://localhost:3001
+  API             http://localhost:4000
+  API health      http://localhost:4000/health/live
+  API docs        http://localhost:4000/docs
+  Realtime        ws://localhost:2567
+  RPS game        http://localhost:5173
+  Penalty Duel    http://localhost:5174
+  ─────────────────────────────────────────
+  Two-player test: open Penalty or RPS in two browser profiles, or use
+  POST http://localhost:4000/auth/guest for distinct guest tokens.
+
+EOF
+}
+
 ensure_docker() {
   log "Starting Postgres and Redis"
   if ! docker info >/dev/null 2>&1; then
@@ -175,14 +210,23 @@ main() {
   log "Seeding database"
   pnpm db:seed
 
-  log "Starting all apps"
-  echo "    web       http://localhost:3000"
-  echo "    admin     http://localhost:3001"
-  echo "    api       http://localhost:4000"
-  echo "    realtime  ws://localhost:2567"
-  echo "    rps       http://localhost:5173"
-  echo
-  exec pnpm dev
+  log "Starting all apps (turbo dev)"
+  print_service_urls
+
+  pnpm dev &
+  DEV_PID=$!
+
+  log "Waiting for core services"
+  wait_for_http "http://localhost:4000/health/live" "API http://localhost:4000" || true
+  wait_for_http "http://localhost:2567/health/ready" "Realtime ws://localhost:2567" || true
+  wait_for_http "http://localhost:3000/" "Web http://localhost:3000" || true
+  wait_for_http "http://localhost:5173/" "RPS http://localhost:5173" || true
+  wait_for_http "http://localhost:5174/" "Penalty Duel http://localhost:5174" || true
+
+  log "Stack ready — open the lobby:"
+  print_service_urls
+
+  wait "$DEV_PID"
 }
 
 main "$@"

@@ -42,6 +42,7 @@ jobs:
       API_PUBLIC_URL: http://localhost:4000
       REALTIME_PUBLIC_URL: ws://localhost:2567
       GAME_RPS_PUBLIC_URL: http://localhost:5173
+      GAME_PENALTY_PUBLIC_URL: http://localhost:5174
       DEV_GUEST_AUTH_ENABLED: 'true'
       STARTING_CHIPS: '10000'
       RPS_ENTRY_FEE: '500'

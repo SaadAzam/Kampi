@@ -32,19 +32,20 @@ All messages are validated with Zod. Origins must match configured allowlists.
 ## Website embed example
 
 ```html
-<iframe id="kampi-rps" src="https://rps.kampi.fun?token=..." allow="fullscreen"></iframe>
+<iframe id="kampi-game" src="https://penalty.kampi.fun" allow="fullscreen"></iframe>
 <script type="module">
-  import { HostEmbedController } from '@kampi/game-sdk';
+  import { HostEmbedController } from '@kampi/game-sdk/embed';
 
-  const iframe = document.getElementById('kampi-rps');
+  const iframe = document.getElementById('kampi-game');
   iframe.addEventListener('load', () => {
     const controller = new HostEmbedController({
       targetWindow: iframe.contentWindow,
-      targetOrigin: 'https://rps.kampi.fun',
-      allowedOrigins: ['https://rps.kampi.fun'],
+      targetOrigin: 'https://penalty.kampi.fun',
+      allowedOrigins: ['https://penalty.kampi.fun'],
       onMessage: (msg) => console.log('game event', msg),
     });
     controller.send({ type: 'host_ready', protocolVersion: '1.0.0' });
+    // Prefer the bridge — never put bearer tokens in the iframe URL query string
     controller.sendSession('YOUR_AUTH_TOKEN');
   });
 </script>
@@ -52,7 +53,7 @@ All messages are validated with Zod. Origins must match configured allowlists.
 
 ## PWA shell
 
-The web app (`apps/web`) launches the RPS iframe and sends session tokens via `HostEmbedController`.
+The web app (`apps/web`) launches catalog games in an iframe and sends session tokens via `HostEmbedController` (`@kampi/game-sdk/embed`).
 
 ## Future Capacitor wrapper
 

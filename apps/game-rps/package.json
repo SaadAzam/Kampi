@@ -14,6 +14,7 @@
   "dependencies": {
     "@kampi/contracts": "workspace:*",
     "@kampi/game-sdk": "workspace:*",
+    "@kampi/game-rps-core": "workspace:*",
     "colyseus.js": "^0.16.16",
     "phaser": "^3.90.0"
   },

@@ -13,6 +13,8 @@ import { prisma } from '@kampi/database';
 import { env } from './config.js';
 import { LobbyRoom } from './rooms/lobby-room.js';
 import { RpsRoom } from './rooms/rps-room.js';
+import { PenaltyDuelRoom } from './rooms/penalty-room.js';
+import { gameRegistry } from './games/registry.js';
 
 const app = express();
 app.use(cors({ origin: env.WEB_ORIGIN }));
@@ -25,7 +27,11 @@ app.get('/health/live', (_req, res) => {
 app.get('/health/ready', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ready', service: 'realtime' });
+    res.json({
+      status: 'ready',
+      service: 'realtime',
+      games: gameRegistry.list().map((g) => g.manifest.gameId),
+    });
   } catch {
     res.status(503).json({ status: 'not_ready', service: 'realtime' });
   }
@@ -42,6 +48,7 @@ const gameServer = new Server({
 
 gameServer.define('lobby', LobbyRoom);
 gameServer.define('rps', RpsRoom);
+gameServer.define('penalty-duel', PenaltyDuelRoom);
 
 process.on('SIGINT', async () => {
   await gameServer.gracefullyShutdown(false);

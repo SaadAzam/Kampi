@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Kampi Penalty Duel</title>
+    <style>
+      html,
+      body,
+      #app {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b3d2e;
+        overflow: hidden;
+        touch-action: manipulation;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+      }
+      #kampi-a11y {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        display: grid;
+        gap: 8px;
+        padding: 12px max(12px, env(safe-area-inset-right))
+          max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+        pointer-events: none;
+      }
+      #kampi-a11y .row {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+        pointer-events: auto;
+      }
+      #kampi-a11y button {
+        min-width: 120px;
+        min-height: 48px;
+        border: 0;
+        border-radius: 10px;
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      #kampi-a11y .left {
+        background: #2563eb;
+      }
+      #kampi-a11y .right {
+        background: #dc2626;
+      }
+      #kampi-a11y .find {
+        background: #059669;
+      }
+      #kampi-a11y .private {
+        background: #0f766e;
+      }
+      #kampi-meta {
+        position: fixed;
+        top: max(8px, env(safe-area-inset-top));
+        left: 12px;
+        right: 12px;
+        z-index: 50;
+        color: #ecfdf5;
+        font-size: 13px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="kampi-meta" aria-live="polite">
+      <div data-testid="status">Ready</div>
+      <div data-testid="role"></div>
+      <div data-testid="score">0 - 0</div>
+      <div data-testid="match-id"></div>
+      <div data-testid="seat"></div>
+      <div data-testid="player-id"></div>
+      <div data-testid="result"></div>
+    </div>
+    <div id="kampi-a11y">
+      <div class="row">
+        <button type="button" class="private" data-testid="create-private">Create Private</button>
+        <button type="button" class="private" data-testid="join-private">Join Code</button>
+        <button type="button" class="find" data-testid="find-match">Find Match</button>
+      </div>
+      <div class="row">
+        <button type="button" class="left" data-testid="action-left">LEFT</button>
+        <button type="button" class="right" data-testid="action-right">RIGHT</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

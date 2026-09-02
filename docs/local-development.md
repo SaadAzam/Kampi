@@ -41,7 +41,10 @@ pnpm --filter @kampi/realtime dev
 pnpm --filter @kampi/web dev
 pnpm --filter @kampi/admin dev
 pnpm --filter @kampi/game-rps dev
+pnpm --filter @kampi/game-penalty-app dev
 ```
+
+Penalty Duel runs on http://localhost:5174. RPS remains on http://localhost:5173.
 
 ## Environment
 
@@ -51,11 +54,7 @@ Required variables are validated at startup — missing values produce a clear e
 
 ## Dev player
 
-Seed output includes:
-
-- Player ID (fixed dev UUID)
-- Token: `dev-guest-token-kampi-local-only`
-- Balance: 10,000 chips
+Seed still creates a fixed single-player guest (`dev-guest-token-kampi-local-only`, 10,000 chips). Prefer `POST /auth/guest` for multiplayer.
 
 ## Database workflows
 
@@ -65,11 +64,13 @@ pnpm db:migrate    # apply migrations
 pnpm db:seed       # idempotent seed
 ```
 
-Create a new migration during development:
+## Two distinct guests
 
-```bash
-pnpm --filter @kampi/database db:migrate:dev
-```
+Do not reuse `dev-guest-token-kampi-local-only` for two-player tests.
+
+- Web lobby: click **New guest identity** (calls `POST /auth/guest`) before launching each game in a separate browser profile/context.
+- Standalone Penalty client: auto-creates a guest when no `sessionStorage` token exists.
+- API: `POST /auth/guest` returns a unique bearer token + wallet per call.
 
 ## Testing
 
@@ -78,6 +79,7 @@ pnpm test
 pnpm lint
 pnpm typecheck
 pnpm build
+pnpm test:e2e   # requires API + realtime + game-penalty running
 ```
 
 ## Troubleshooting

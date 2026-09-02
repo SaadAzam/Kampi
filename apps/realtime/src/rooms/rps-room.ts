@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Room, Client } from '@colyseus/core';
 import {
   createRandomSource,
@@ -9,17 +8,27 @@ import {
 } from '@kampi/contracts';
 import { prisma } from '@kampi/database';
 import { deductEntryFees, finalizeMatchPayout, refundAbortedMatch } from '@kampi/domain';
+import { SettlementCoordinator } from '@kampi/game-sdk/server';
 import { economy, ROUND_TIMEOUT_MS, BEST_OF } from '../config.js';
 import { PlayerState, RpsRoomState, RoundState, buildSnapshot } from './rps-state.js';
 
 type JoinOptions = {
-  authToken: string;
-  userId: string;
-  displayName: string;
-  slot: 'PLAYER1' | 'PLAYER2';
-  kind: 'HUMAN' | 'BOT';
+  authToken?: string;
+  userId?: string;
+  displayName?: string;
+  slot?: 'PLAYER1' | 'PLAYER2';
+  seat?: 'A' | 'B';
+  kind?: 'HUMAN' | 'BOT';
   botFill?: boolean;
   matchId?: string;
+  gameId?: string;
+};
+
+type SeatPlayer = {
+  userId: string;
+  displayName: string;
+  seat: 'A' | 'B';
+  kind: 'HUMAN' | 'BOT';
 };
 
 type RpsRoomMetadata = {
@@ -27,10 +36,18 @@ type RpsRoomMetadata = {
   botFill: boolean;
 };
 
+function seatToLegacySlot(seat: 'A' | 'B'): 'PLAYER1' | 'PLAYER2' {
+  return seat === 'A' ? 'PLAYER1' : 'PLAYER2';
+}
+
 export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
   private roundTimer?: NodeJS.Timeout;
   private random: RandomSource = createRandomSource();
-  private finalized = false;
+  private settlement = new SettlementCoordinator({
+    deductEntryFees: (input) => deductEntryFees(prisma, input),
+    finalizeMatchPayout: (input) => finalizeMatchPayout(prisma, input),
+    refundAbortedMatch: (input) => refundAbortedMatch(prisma, input),
+  });
 
   override maxClients = 2;
 
@@ -40,10 +57,26 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
 
   override onCreate(options: {
     matchId: string;
-    player1: JoinOptions;
-    player2: JoinOptions;
+    player1?: JoinOptions;
+    player2?: JoinOptions;
+    playerA?: SeatPlayer;
+    playerB?: SeatPlayer;
     botFill: boolean;
+    economy?: { entryFee: string; winnerPayout: string };
   }) {
+    const player1: JoinOptions = options.player1 ?? {
+      userId: options.playerA?.userId,
+      displayName: options.playerA?.displayName,
+      slot: 'PLAYER1',
+      kind: options.playerA?.kind,
+    };
+    const player2: JoinOptions = options.player2 ?? {
+      userId: options.playerB?.userId,
+      displayName: options.playerB?.displayName,
+      slot: 'PLAYER2',
+      kind: options.playerB?.kind,
+    };
+
     this.setState(new RpsRoomState());
     this.state.matchId = options.matchId;
     this.state.bestOf = BEST_OF;
@@ -51,8 +84,8 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     this.state.status = 'WAITING';
 
     this.setMetadata({ matchId: options.matchId, botFill: options.botFill });
-    this.setupPlayer('PLAYER1', options.player1);
-    this.setupPlayer('PLAYER2', options.player2);
+    this.setupPlayer('PLAYER1', player1);
+    this.setupPlayer('PLAYER2', player2);
 
     this.onMessage('submit_choice', (client, message: { choice?: RpsChoice }) => {
       if (message?.choice) {
@@ -60,15 +93,25 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
       }
     });
 
-    void this.activateMatch(options);
+    void this.activateMatch({
+      matchId: options.matchId,
+      player1,
+      player2,
+      entryFee: options.economy?.entryFee
+        ? BigInt(options.economy.entryFee)
+        : economy.rpsEntryFee,
+      winnerPayout: options.economy?.winnerPayout
+        ? BigInt(options.economy.winnerPayout)
+        : economy.rpsWinnerPayout,
+    });
   }
 
   private setupPlayer(slot: 'PLAYER1' | 'PLAYER2', options: JoinOptions) {
     const player = new PlayerState();
     player.slot = slot;
-    player.userId = options.userId;
-    player.displayName = options.displayName;
-    player.kind = options.kind;
+    player.userId = options.userId ?? '';
+    player.displayName = options.displayName ?? (slot === 'PLAYER1' ? 'Player 1' : 'Player 2');
+    player.kind = options.kind ?? 'HUMAN';
     player.connected = options.kind === 'BOT' ? true : false;
     this.state.players.set(slot, player);
   }
@@ -77,27 +120,21 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     matchId: string;
     player1: JoinOptions;
     player2: JoinOptions;
+    entryFee: bigint;
+    winnerPayout: bigint;
   }) {
     try {
-      await deductEntryFees(prisma, {
+      const humans = [options.player1, options.player2].filter(
+        (p) => p.kind === 'HUMAN' && p.userId,
+      );
+      await this.settlement.deductEntries({
         matchId: options.matchId,
-        entryFee: economy.rpsEntryFee,
-        players: [
-          {
-            userId: options.player1.userId,
-            slot: 1,
-            entryFeeKey: `entry:${options.matchId}:${options.player1.userId}`,
-          },
-          ...(options.player2.kind === 'HUMAN'
-            ? [
-                {
-                  userId: options.player2.userId,
-                  slot: 2,
-                  entryFeeKey: `entry:${options.matchId}:${options.player2.userId}`,
-                },
-              ]
-            : []),
-        ],
+        entryFee: options.entryFee,
+        players: humans.map((p, index) => ({
+          userId: p.userId!,
+          slot: p.slot === 'PLAYER2' ? 2 : index + 1,
+          entryFeeKey: `entry:${options.matchId}:${p.userId}`,
+        })),
       });
 
       await prisma.match.update({
@@ -109,18 +146,40 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
       this.startRound();
     } catch (error) {
       console.error('Failed to activate match', error);
-      await this.abortMatch('Failed to deduct entry fees');
+      await this.abortMatch('Failed to deduct entry fees', options.entryFee);
     }
   }
 
   override async onJoin(client: Client, options: JoinOptions) {
-    const player = this.state.players.get(options.slot);
+    const slot =
+      options.slot ??
+      (options.seat ? seatToLegacySlot(options.seat) : undefined) ??
+      (Array.from(this.state.players.values()).find((p) => p.userId && !p.sessionId)?.slot as
+        | 'PLAYER1'
+        | 'PLAYER2'
+        | undefined);
+
+    if (!slot) {
+      throw new Error('Invalid slot');
+    }
+    const player = this.state.players.get(slot);
     if (!player) {
       throw new Error('Invalid slot');
+    }
+    // Seat reservation: join must match reserved user when human
+    if (
+      player.kind === 'HUMAN' &&
+      options.authToken &&
+      options.userId &&
+      player.userId &&
+      options.userId !== player.userId
+    ) {
+      throw new Error('Seat reserved for another player');
     }
     player.sessionId = client.sessionId;
     player.connected = true;
     client.send('snapshot', buildSnapshot(this.state, false));
+    client.send('seat_assigned', { seat: slot === 'PLAYER1' ? 'A' : 'B', slot });
 
     if (player.kind === 'BOT') {
       this.scheduleBotChoice();
@@ -302,8 +361,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
   }
 
   private async finishMatch(winner: 'PLAYER1' | 'PLAYER2') {
-    if (this.finalized) return;
-    this.finalized = true;
+    if (this.settlement.isFinalized) return;
     this.state.status = 'FINISHED';
     this.state.winnerSlot = winner;
 
@@ -319,13 +377,14 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     });
 
     if (winnerPlayer.kind === 'HUMAN' && winnerPlayer.userId) {
-      await finalizeMatchPayout(prisma, {
+      await this.settlement.payWinner({
         matchId: this.state.matchId,
         winnerUserId: winnerPlayer.userId,
         payout: economy.rpsWinnerPayout,
         payoutLedgerKey: `payout:${this.state.matchId}`,
       });
     } else {
+      this.settlement.markFinalized();
       await prisma.match.update({
         where: { id: this.state.matchId },
         data: { status: 'FINISHED', finalizedAt: new Date() },
@@ -341,9 +400,8 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     setTimeout(() => this.disconnect(), 5000);
   }
 
-  private async abortMatch(reason: string) {
-    if (this.finalized) return;
-    this.finalized = true;
+  private async abortMatch(reason: string, entryFee: bigint = economy.rpsEntryFee) {
+    if (this.settlement.isFinalized) return;
     this.state.status = 'ABORTED';
     this.state.abortReason = reason;
 
@@ -354,10 +412,10 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
         entryFeeKey: `entry:${this.state.matchId}:${p.userId}`,
       }));
 
-    await refundAbortedMatch(prisma, {
+    await this.settlement.abortRefund({
       matchId: this.state.matchId,
       players,
-      entryFee: economy.rpsEntryFee,
+      entryFee,
       abortRefundKey: `abort:${this.state.matchId}`,
     });
 
@@ -372,72 +430,4 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     this.broadcast('snapshot', buildSnapshot(this.state, true));
     setTimeout(() => this.disconnect(), 3000);
   }
-}
-
-export async function createRpsMatchRecord(options: {
-  player1UserId: string;
-  player1Name: string;
-  player2UserId: string;
-  player2Name: string;
-  player2Kind: 'HUMAN' | 'BOT';
-  botFill: boolean;
-}) {
-  const game = await prisma.game.findUniqueOrThrow({
-    where: { slug: 'rock-paper-scissors' },
-  });
-
-  const matchId = randomUUID();
-
-  await prisma.match.create({
-    data: {
-      id: matchId,
-      gameId: game.id,
-      status: 'WAITING',
-      entryFee: economy.rpsEntryFee,
-      winnerPayout: economy.rpsWinnerPayout,
-      bestOf: BEST_OF,
-      botFill: options.botFill,
-      players: {
-        create: [
-          {
-            slot: 1,
-            userId: options.player1UserId,
-            kind: 'HUMAN',
-            displayName: options.player1Name,
-            entryFeeKey: `entry:${matchId}:${options.player1UserId}`,
-          },
-          {
-            slot: 2,
-            userId: options.player2Kind === 'HUMAN' ? options.player2UserId : null,
-            kind: options.player2Kind,
-            displayName: options.player2Name,
-            entryFeeKey:
-              options.player2Kind === 'HUMAN'
-                ? `entry:${matchId}:${options.player2UserId}`
-                : `entry:${matchId}:bot`,
-          },
-        ],
-      },
-    },
-  });
-
-  await prisma.matchEvent.create({
-    data: {
-      matchId,
-      type: 'MATCH_CREATED',
-      payload: { botFill: options.botFill },
-    },
-  });
-
-  if (options.botFill) {
-    await prisma.matchEvent.create({
-      data: {
-        matchId,
-        type: 'BOT_FILLED',
-        payload: {},
-      },
-    });
-  }
-
-  return matchId;
 }

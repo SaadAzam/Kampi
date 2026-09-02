@@ -18,11 +18,15 @@ apps/admin        Minimal Next.js admin shell
 apps/api          NestJS HTTP API
 apps/realtime     Colyseus authoritative match server
 apps/game-rps     Vite + Phaser RPS client
-packages/contracts   Shared Zod schemas and types
-packages/database    Prisma schema and client
-packages/domain      Server-only wallet/match services
-packages/game-sdk    iframe/postMessage embedding SDK
-packages/config      Shared TS/ESLint/Prettier config
+apps/game-penalty Vite + Phaser Penalty Duel client
+apps/e2e          Playwright / live matchmaking checks
+packages/contracts     Shared Zod schemas and types
+packages/database      Prisma schema and client
+packages/domain        Server-only wallet/match services
+packages/game-sdk      Modular game SDK (common/client/server/embed/testing)
+packages/game-rps-core RPS manifest + schemas
+packages/game-penalty  Penalty Duel pure rules
+packages/config        Shared TS/ESLint/Prettier config
 ```
 
 **Rule:** Apps may import packages. Apps must **never** import from other apps.
@@ -56,8 +60,9 @@ Services:
 | API       | http://localhost:4000    |
 | Realtime  | ws://localhost:2567      |
 | RPS game  | http://localhost:5173    |
+| Penalty   | http://localhost:5174    |
 
-Dev guest token (local only): `dev-guest-token-kampi-local-only`
+Dev guest token (local only, single-player): `dev-guest-token-kampi-local-only`. For two-player tests use `POST /auth/guest` / **New guest identity**.
 
 ## Commands
 
@@ -67,10 +72,11 @@ pnpm build        # production build
 pnpm lint         # ESLint
 pnpm typecheck    # TypeScript
 pnpm test         # Vitest
+pnpm test:e2e     # Playwright (stack must be running)
 pnpm format       # Prettier
 pnpm db:generate  # Prisma client
 pnpm db:migrate   # apply migrations
-pnpm db:seed      # seed RPS game + dev player
+pnpm db:seed      # seed games + dev player
 ```
 
 ## Environment

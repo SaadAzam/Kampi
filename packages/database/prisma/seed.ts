@@ -55,6 +55,7 @@ async function main() {
         entryFee: process.env.RPS_ENTRY_FEE ?? '500',
         winnerPayout: process.env.RPS_WINNER_PAYOUT ?? '950',
         roundTimeoutMs: 15000,
+        clientLaunchUrl: process.env.GAME_RPS_PUBLIC_URL ?? 'http://localhost:5173',
       },
     },
     create: {
@@ -66,6 +67,7 @@ async function main() {
         entryFee: process.env.RPS_ENTRY_FEE ?? '500',
         winnerPayout: process.env.RPS_WINNER_PAYOUT ?? '950',
         roundTimeoutMs: 15000,
+        clientLaunchUrl: process.env.GAME_RPS_PUBLIC_URL ?? 'http://localhost:5173',
       },
     },
   });
@@ -145,6 +147,74 @@ async function main() {
     },
   });
 
+  const penaltyGame = await prisma.game.upsert({
+    where: { slug: 'penalty-duel' },
+    update: {
+      name: 'Penalty Duel',
+      status: 'ACTIVE',
+      description: 'Goal Kicks — alternate shootouts, sudden death on ties',
+    },
+    create: {
+      slug: 'penalty-duel',
+      name: 'Penalty Duel',
+      status: 'ACTIVE',
+      description: 'Goal Kicks — alternate shootouts, sudden death on ties',
+    },
+  });
+
+  await prisma.gameVersion.upsert({
+    where: {
+      gameId_version: {
+        gameId: penaltyGame.id,
+        version: '1.0.0',
+      },
+    },
+    update: {
+      isActive: true,
+      config: {
+        regulationKicksPerPlayer: 3,
+        decisionTimeMs: 10_000,
+        revealDurationMs: 2_000,
+        entryFee: process.env.PENALTY_ENTRY_FEE ?? process.env.RPS_ENTRY_FEE ?? '500',
+        winnerPayout: process.env.PENALTY_WINNER_PAYOUT ?? process.env.RPS_WINNER_PAYOUT ?? '950',
+        botFillAfterMs: Number(process.env.BOT_FILL_AFTER_MS ?? 10_000),
+        reconnectGraceMs: Number(process.env.RECONNECT_GRACE_MS ?? 30_000),
+        directions: ['LEFT', 'RIGHT'],
+        clientLaunchUrl: process.env.GAME_PENALTY_PUBLIC_URL ?? 'http://localhost:5174',
+      },
+    },
+    create: {
+      gameId: penaltyGame.id,
+      version: '1.0.0',
+      isActive: true,
+      config: {
+        regulationKicksPerPlayer: 3,
+        decisionTimeMs: 10_000,
+        revealDurationMs: 2_000,
+        entryFee: process.env.PENALTY_ENTRY_FEE ?? process.env.RPS_ENTRY_FEE ?? '500',
+        winnerPayout: process.env.PENALTY_WINNER_PAYOUT ?? process.env.RPS_WINNER_PAYOUT ?? '950',
+        botFillAfterMs: Number(process.env.BOT_FILL_AFTER_MS ?? 10_000),
+        reconnectGraceMs: Number(process.env.RECONNECT_GRACE_MS ?? 30_000),
+        directions: ['LEFT', 'RIGHT'],
+        clientLaunchUrl: process.env.GAME_PENALTY_PUBLIC_URL ?? 'http://localhost:5174',
+      },
+    },
+  });
+
+  await prisma.playerProgression.upsert({
+    where: {
+      userId_gameId: {
+        userId: devUser.id,
+        gameId: penaltyGame.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: devUser.id,
+      gameId: penaltyGame.id,
+    },
+  });
+
   // Placeholder purchase provider interface seed
   await prisma.purchase.upsert({
     where: { idempotencyKey: 'seed:placeholder-purchase' },
@@ -164,6 +234,7 @@ async function main() {
   console.info(`Dev player ID: ${devUser.id}`);
   console.info(`Dev guest token: ${devToken}`);
   console.info(`RPS game ID: ${rpsGame.id}`);
+  console.info(`Penalty Duel game ID: ${penaltyGame.id}`);
 }
 
 main()

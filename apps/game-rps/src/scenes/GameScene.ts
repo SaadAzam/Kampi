@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { Client, Room } from 'colyseus.js';
 import type { RpsMatchSnapshot, RpsChoice } from '@kampi/contracts';
-import { GameEmbedClient } from '@kampi/game-sdk';
+import { GameSessionClient } from '@kampi/game-sdk/client';
+import { GameEmbedClient } from '@kampi/game-sdk/embed';
+import { RPS_GAME_ID } from '@kampi/game-rps-core';
 import { runtimeConfig } from '../config.js';
 
 type UiState = {
@@ -15,11 +16,9 @@ type UiState = {
 };
 
 export class GameScene extends Phaser.Scene {
-  private client?: Client;
-  private lobbyRoom?: Room;
-  private gameRoom?: Room;
+  private session?: GameSessionClient;
   private snapshot?: RpsMatchSnapshot;
-  private reconnectionToken?: string;
+  private mySlot: 'PLAYER1' | 'PLAYER2' = 'PLAYER1';
   private ui!: UiState;
   private uiTexts: Record<keyof UiState, Phaser.GameObjects.Text> = {} as Record<
     keyof UiState,
@@ -33,7 +32,7 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.ui = {
-      status: 'Connecting…',
+      status: 'Ready — tap Find Match',
       connection: 'offline',
       queue: '',
       opponent: '',
@@ -46,7 +45,8 @@ export class GameScene extends Phaser.Scene {
     this.createUi();
     this.createChoiceButtons();
     this.setupEmbed();
-    void this.connect();
+    this.ui.connection = 'online';
+    this.refreshUi();
   }
 
   private drawBackground() {
@@ -116,143 +116,90 @@ export class GameScene extends Phaser.Scene {
 
   private setupEmbed() {
     if (window.parent === window) return;
+    const parentOrigin = import.meta.env.VITE_WEB_ORIGIN ?? 'http://localhost:3000';
     this.embed = new GameEmbedClient({
-      iframe: window.frameElement as HTMLIFrameElement,
-      allowedOrigins: ['http://localhost:3000', 'http://localhost:5173'],
+      parentOrigin,
+      allowedOrigins: [parentOrigin],
       onMessage: (message) => {
         if (message.type === 'session') {
           runtimeConfig.authToken = message.authToken;
         }
       },
     });
-    this.embed.notifyReady('rock-paper-scissors');
+    this.embed.notifyReady(RPS_GAME_ID);
   }
 
-  private async connect() {
-    this.ui.connection = 'connecting';
-    this.refreshUi();
-    this.client = new Client(runtimeConfig.realtimeUrl);
-
-    try {
-      this.ui.connection = 'online';
-      this.ui.status = 'Ready — tap Find Match';
-      this.refreshUi();
-    } catch {
-      this.ui.connection = 'error';
-      this.ui.status = 'Failed to connect to realtime server';
-      this.refreshUi();
-    }
-  }
-
-  private async joinQueue() {
-    if (!this.client) return;
-    this.ui.queue = 'Joining Saad queue…';
-    this.ui.status = 'Searching for opponent';
-    this.refreshUi();
-
-    this.lobbyRoom = await this.client.joinOrCreate('lobby', {
-      authToken: runtimeConfig.authToken,
-    });
-
-    this.lobbyRoom.onMessage('queue_joined', (payload: { ticketId: string; position: number }) => {
-      this.ui.queue = `Queued (#${payload.position + 1}) — real players first`;
-      this.refreshUi();
-    });
-
-    this.lobbyRoom.onMessage(
-      'match_found',
-      async (payload: {
-        matchId: string;
-        roomId: string;
-        opponentKind: 'HUMAN' | 'BOT';
-        botFill: boolean;
-      }) => {
+  private ensureSession(): GameSessionClient {
+    if (!this.session) {
+      this.session = new GameSessionClient({
+        realtimeUrl: runtimeConfig.realtimeUrl,
+        authToken: runtimeConfig.authToken,
+        gameId: RPS_GAME_ID,
+      });
+      this.session.on('status', (status) => {
+        this.ui.connection = status === 'reconnecting' ? 'reconnecting' : 'online';
+        this.refreshUi();
+      });
+      this.session.on('queue_joined', () => {
+        this.ui.queue = 'Joining matchmaking queue…';
+        this.ui.status = 'Searching for opponent';
+        this.refreshUi();
+      });
+      this.session.on('match_found', (payload) => {
+        this.mySlot = payload.seat === 'A' ? 'PLAYER1' : 'PLAYER2';
         this.ui.queue = payload.botFill ? 'Bot joined — match starting' : 'Opponent found!';
         this.ui.opponent = payload.opponentKind === 'BOT' ? 'Bot Opponent' : 'Human Opponent';
         this.refreshUi();
-        await this.joinGameRoom(payload.roomId, payload.matchId);
         this.embed?.postToHost({
           type: 'match_started',
           matchId: payload.matchId,
-          gameSlug: 'rock-paper-scissors',
+          gameSlug: RPS_GAME_ID,
         });
-      },
-    );
-
-    this.lobbyRoom.onMessage('error', (payload: { message: string }) => {
-      this.ui.status = payload.message;
-      this.refreshUi();
-    });
-  }
-
-  private async joinGameRoom(roomId: string, matchId: string) {
-    if (!this.client) return;
-
-    this.gameRoom = await this.client.joinById(roomId, {
-      authToken: runtimeConfig.authToken,
-      userId: 'auto',
-      displayName: 'Player',
-      slot: 'PLAYER1',
-      kind: 'HUMAN',
-      matchId,
-    });
-
-    this.reconnectionToken = this.gameRoom.reconnectionToken;
-    this.ui.status = 'Match active';
-    this.refreshUi();
-
-    this.gameRoom.onMessage('snapshot', (snapshot: RpsMatchSnapshot) => {
-      this.snapshot = snapshot;
-      this.renderSnapshot(snapshot);
-    });
-
-    this.gameRoom.onMessage(
-      'match_completed',
-      (payload: { winnerSlot: string; payout: string | null }) => {
-        this.ui.result = `Match complete — winner: ${payload.winnerSlot}`;
+      });
+      this.session.on('snapshot', (payload) => {
+        this.snapshot = payload as RpsMatchSnapshot;
+        this.renderSnapshot(this.snapshot);
+      });
+      this.session.on('match_completed', (payload) => {
+        const data = payload as { winnerSlot: string; payout: string | null };
+        this.ui.result = `Match complete — winner: ${data.winnerSlot}`;
         this.refreshUi();
         this.embed?.postToHost({
           type: 'match_completed',
-          matchId,
-          result: payload.winnerSlot === 'PLAYER1' ? 'WIN' : 'LOSS',
-          payout: payload.payout,
+          matchId: this.snapshot?.matchId ?? '00000000-0000-4000-8000-000000000000',
+          result: data.winnerSlot === this.mySlot ? 'WIN' : 'LOSS',
+          payout: data.payout,
         });
-      },
-    );
-
-    this.gameRoom.onLeave((code) => {
-      if (code !== 1000 && this.reconnectionToken) {
-        void this.tryReconnect();
-      }
-    });
+      });
+      this.session.on('error', (payload) => {
+        this.ui.status = payload.message;
+        this.refreshUi();
+      });
+    }
+    return this.session;
   }
 
-  private async tryReconnect() {
-    if (!this.client || !this.reconnectionToken) return;
-    this.ui.connection = 'reconnecting';
+  private async joinQueue() {
+    const session = this.ensureSession();
+    this.ui.queue = 'Joining matchmaking queue…';
+    this.ui.status = 'Searching for opponent';
     this.refreshUi();
-    try {
-      this.gameRoom = await this.client.reconnect(this.reconnectionToken);
-      this.ui.connection = 'online';
-      this.ui.status = 'Reconnected';
-      this.refreshUi();
-    } catch {
-      this.ui.connection = 'error';
-      this.ui.status = 'Reconnection failed';
-      this.refreshUi();
-    }
+    await session.joinQueue();
   }
 
   private submitChoice(choice: RpsChoice) {
-    if (!this.gameRoom || !this.snapshot || this.snapshot.status !== 'ACTIVE') return;
-    this.gameRoom.send('submit_choice', { choice });
+    if (!this.session || !this.snapshot || this.snapshot.status !== 'ACTIVE') return;
+    this.session.sendAction('submit_choice', {
+      commandId: crypto.randomUUID(),
+      choice,
+    });
     this.ui.status = `Locked: ${choice}`;
     this.refreshUi();
   }
 
   private renderSnapshot(snapshot: RpsMatchSnapshot) {
-    const me = snapshot.players.find((p) => p.slot === 'PLAYER1');
-    const opp = snapshot.players.find((p) => p.slot === 'PLAYER2');
+    const me = snapshot.players.find((p) => p.slot === this.mySlot);
+    const opp = snapshot.players.find((p) => p.slot !== this.mySlot);
     this.ui.score = `${me?.score ?? 0} - ${opp?.score ?? 0}`;
     this.ui.connection = me?.connected ? 'online' : 'reconnecting';
     if (snapshot.roundDeadlineMs) {
