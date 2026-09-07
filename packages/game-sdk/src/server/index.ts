@@ -1,10 +1,5 @@
 import type { GameManifest } from '../common/index.js';
-import {
-  GameManifestSchema,
-  SdkError,
-  queueKeyString,
-  type QueueKey,
-} from '../common/index.js';
+import { GameManifestSchema, SdkError, queueKeyString, type QueueKey } from '../common/index.js';
 import { z } from 'zod';
 
 export type RegisteredGame = {
@@ -74,6 +69,7 @@ export type SettlementPorts = {
 /** Exactly-once settlement coordinator — wraps domain ports with local finalization guard. */
 export class SettlementCoordinator {
   private finalized = false;
+  private settling = false;
 
   constructor(private readonly ports: SettlementPorts) {}
 
@@ -86,16 +82,26 @@ export class SettlementCoordinator {
   }
 
   async payWinner(input: Parameters<SettlementPorts['finalizeMatchPayout']>[0]): Promise<boolean> {
-    if (this.finalized) return false;
-    const result = await this.ports.finalizeMatchPayout(input);
-    this.finalized = true;
-    return result.paid;
+    if (this.finalized || this.settling) return false;
+    this.settling = true;
+    try {
+      const result = await this.ports.finalizeMatchPayout(input);
+      this.finalized = true;
+      return result.paid;
+    } finally {
+      this.settling = false;
+    }
   }
 
   async abortRefund(input: Parameters<SettlementPorts['refundAbortedMatch']>[0]): Promise<void> {
-    if (this.finalized) return;
-    await this.ports.refundAbortedMatch(input);
-    this.finalized = true;
+    if (this.finalized || this.settling) return;
+    this.settling = true;
+    try {
+      await this.ports.refundAbortedMatch(input);
+      this.finalized = true;
+    } finally {
+      this.settling = false;
+    }
   }
 
   markFinalized(): void {
@@ -117,6 +123,10 @@ export class CommandGuard {
   /** Returns true if this is a duplicate idempotent retry (already applied). */
   checkIdempotency(commandId: string): 'new' | 'duplicate' {
     if (this.seenCommandIds.has(commandId)) return 'duplicate';
+    if (this.seenCommandIds.size >= 1024) {
+      const oldest = this.seenCommandIds.values().next().value;
+      if (oldest) this.seenCommandIds.delete(oldest);
+    }
     this.seenCommandIds.add(commandId);
     return 'new';
   }
@@ -142,10 +152,13 @@ export class DeadlineScheduler {
   private timers = new Set<ReturnType<typeof setTimeout>>();
 
   schedule(delayMs: number, callback: () => void): DeadlineHandle {
-    const timer = setTimeout(() => {
-      this.timers.delete(timer);
-      callback();
-    }, Math.max(0, delayMs));
+    const timer = setTimeout(
+      () => {
+        this.timers.delete(timer);
+        callback();
+      },
+      Math.max(0, delayMs),
+    );
     this.timers.add(timer);
     return {
       clear: () => {

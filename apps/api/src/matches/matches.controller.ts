@@ -1,10 +1,12 @@
+import { z } from 'zod';
+import { parseBody } from '../common/parse-body.js';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Inject } from '@nestjs/common';
 import { PRISMA } from '../database/database.module.js';
 import type { PrismaClient } from '@kampi/database';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { CurrentUser } from '../auth/current-user.decorator.js';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator.js';
 
 @ApiTags('matches')
 @Controller('matches')
@@ -14,11 +16,8 @@ export class MatchesController {
   @Get('history')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  async history(
-    @CurrentUser() user: { id: string },
-    @Query('limit') limitRaw?: string,
-  ) {
-    const limit = Math.min(Number(limitRaw ?? 20), 100);
+  async history(@CurrentUser() user: AuthUser, @Query('limit') limitRaw?: string) {
+    const limit = parseBody(z.coerce.number().int().min(1).max(100), limitRaw ?? 20);
     const players = await this.prisma.matchPlayer.findMany({
       where: { userId: user.id },
       include: {
@@ -39,7 +38,6 @@ export class MatchesController {
         score: player.score,
         createdAt: player.createdAt.toISOString(),
       })),
-      note: 'Match history placeholder — detailed round data available via match events',
     };
   }
 }

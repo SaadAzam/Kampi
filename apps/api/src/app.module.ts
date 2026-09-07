@@ -9,6 +9,7 @@ import { PlayersModule } from './players/players.module.js';
 import { WalletModule } from './wallet/wallet.module.js';
 import { GamesModule } from './games/games.module.js';
 import { MatchesModule } from './matches/matches.module.js';
+import { StatsModule } from './stats/stats.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MatchesModule } from './matches/matches.module.js';
     WalletModule,
     GamesModule,
     MatchesModule,
+    StatsModule,
   ],
   providers: [
     {

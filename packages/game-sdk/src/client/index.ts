@@ -9,13 +9,7 @@ import {
 } from '../common/index.js';
 
 export type ConnectionStatus =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'queued'
-  | 'in_match'
-  | 'reconnecting'
-  | 'error';
+  'disconnected' | 'connecting' | 'connected' | 'queued' | 'in_match' | 'reconnecting' | 'error';
 
 export type MatchFoundPayload = {
   matchId: string;
@@ -85,6 +79,7 @@ export class GameSessionClient {
   private reconnectionToken?: string;
   private readonly listeners = new Map<keyof ListenerMap, Set<(payload: never) => void>>();
   private destroyed = false;
+  private matchFinished = false;
 
   constructor(private readonly options: GameClientOptions) {}
 
@@ -182,7 +177,13 @@ export class GameSessionClient {
       this.emit('queue_joined', payload as ListenerMap['queue_joined']);
     });
     room.onMessage('match_found', (payload) => {
-      void this.handleMatchFound(payload as MatchFoundPayload);
+      void this.handleMatchFound(payload as MatchFoundPayload).catch(() => {
+        this.setStatus('error');
+        this.emit('error', {
+          code: 'INTERNAL',
+          message: 'Could not join match. Please try again.',
+        });
+      });
     });
     room.onMessage('invite_created', (payload) => {
       this.emit('invite_created', payload as ListenerMap['invite_created']);
@@ -194,6 +195,7 @@ export class GameSessionClient {
   }
 
   private async handleMatchFound(payload: MatchFoundPayload): Promise<void> {
+    this.matchFinished = false;
     this.emit('match_found', payload);
     if (!this.client) return;
     this.match = await this.client.joinById(payload.roomId, {
@@ -215,12 +217,21 @@ export class GameSessionClient {
   }
 
   private wireMatch(room: ColyseusLikeRoom): void {
-    room.onMessage('snapshot', (payload) => this.emit('snapshot', payload));
-    room.onMessage('match_completed', (payload) => this.emit('match_completed', payload));
+    room.onMessage('snapshot', (payload) => {
+      const state = payload as { phase?: string; status?: string } | null;
+      if (state && ['FINISHED', 'ABORTED'].includes(state.phase ?? state.status ?? ''))
+        this.matchFinished = true;
+      this.emit('snapshot', payload);
+    });
+    room.onMessage('match_completed', (payload) => {
+      this.matchFinished = true;
+      this.emit('match_completed', payload);
+    });
     room.onMessage('private_ack', (payload) => this.emit('private_ack', payload));
     room.onMessage('error', (payload) => this.emit('error', payload as ListenerMap['error']));
     room.onLeave((code) => {
-      if (code !== 1000 && this.reconnectionToken) {
+      if (this.destroyed || this.match !== room) return;
+      if (!this.matchFinished && code !== 1000 && this.reconnectionToken) {
         void this.reconnect();
       } else {
         this.setStatus('disconnected');
@@ -234,14 +245,31 @@ export class GameSessionClient {
       return;
     }
     this.setStatus('reconnecting');
-    try {
-      this.match = await this.client.reconnect(this.reconnectionToken);
-      this.reconnectionToken = this.match.reconnectionToken ?? this.reconnectionToken;
-      this.wireMatch(this.match);
-      this.setStatus('in_match');
-    } catch {
+    for (let attempt = 0; attempt < 9 && !this.destroyed; attempt++) {
+      try {
+        const room = await this.client.reconnect(this.reconnectionToken);
+        if (this.destroyed) {
+          room.leave(true);
+          return;
+        }
+        this.match = room;
+        this.reconnectionToken = room.reconnectionToken ?? this.reconnectionToken;
+        this.wireMatch(room);
+        this.setStatus('in_match');
+        room.send('request_snapshot');
+        return;
+      } catch {
+        // The server may still be detecting the closed socket. Retry within its grace period.
+        if (attempt < 8)
+          await new Promise((resolve) => setTimeout(resolve, Math.min(250 * 2 ** attempt, 2000)));
+      }
+    }
+    if (!this.destroyed) {
       this.setStatus('error');
-      this.emit('error', { code: 'INTERNAL', message: 'Reconnection failed' });
+      this.emit('error', {
+        code: 'INTERNAL',
+        message: 'Reconnection failed. Return to the lobby to try again.',
+      });
     }
   }
 
@@ -261,8 +289,10 @@ export class GameSessionClient {
   }
 
   leaveMatch(): void {
-    this.match?.leave(true);
+    const room = this.match;
     this.match = undefined;
+    this.reconnectionToken = undefined;
+    room?.leave(true);
     this.setStatus('connected');
   }
 

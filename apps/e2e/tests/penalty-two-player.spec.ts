@@ -27,7 +27,9 @@ async function waitForGameApi(page: Page) {
   await expect
     .poll(
       async () =>
-        page.evaluate(() => Boolean((window as unknown as { __kampiPenalty?: unknown }).__kampiPenalty)),
+        page.evaluate(() =>
+          Boolean((window as unknown as { __kampiPenalty?: unknown }).__kampiPenalty),
+        ),
       { timeout: 20_000 },
     )
     .toBe(true);
@@ -114,7 +116,7 @@ test.describe('Penalty Duel two-player', () => {
 
     for (let i = 0; i < 10; i += 1) {
       const statusA = ((await pageA.getByTestId('status').textContent()) ?? '').trim();
-      if (statusA === 'FINISHED') break;
+      if (statusA.includes('FINISHED')) break;
 
       await expect
         .poll(async () => ((await pageA.getByTestId('role').textContent()) ?? '').trim(), {

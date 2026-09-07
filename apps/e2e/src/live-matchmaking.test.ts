@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Client } from 'colyseus.js';
 
 const API_URL = process.env.API_PUBLIC_URL ?? 'http://localhost:4000';
+const TEST_REGION = `regression-${crypto.randomUUID()}`;
 const REALTIME_URL = process.env.REALTIME_PUBLIC_URL ?? 'ws://localhost:2567';
 
 async function createGuest() {
@@ -47,7 +48,7 @@ describe('live two-client Penalty matchmaking', () => {
       gameVersion: '1.0.0',
       mode: 'PUBLIC',
       stakeKey: 'default',
-      region: 'global',
+      region: TEST_REGION,
     });
 
     const found = await Promise.all([

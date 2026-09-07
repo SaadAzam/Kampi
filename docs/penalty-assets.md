@@ -1,20 +1,12 @@
-# Asset replacement guide (Penalty Duel)
+# Penalty Duel asset replacement
 
-Placeholder presentation uses Phaser primitives (goal box, keeper rectangle, ball circle, tweens). Replace art without touching authority.
+The presentation is separate from authoritative gameplay. HTML provides accessible controls, scores, timers, invitations, and results. Phaser draws and animates the pitch, keeper, and ball.
 
-## Presentation adapter
+1. Put final sprites, atlases, or audio in `apps/game-penalty/public/assets/`.
+2. Load asset keys in `GameScene.preload()` in `apps/game-penalty/src/scenes/GameScene.ts`.
+3. Replace the primitives in `drawStadium()` with sprites. Retain layout coordinates derived from the scene width/height so rotation and embedding continue to work.
+4. Map `shot`, `dive`, and `outcome` in `playReveal()` to the appropriate animations. Reveal history and `turnId` come from the server; animation completion must never advance or settle a match.
+5. Preserve reduced-motion handling, visible HTML outcomes, and the accessible controls in `apps/game-penalty/index.html`.
+6. Replace lobby `.game-art` placeholders in `apps/web/src/app/page.tsx` and its styles; retain the two-column responsive card structure and real game metadata.
 
-Animation states: `IDLE`, `KICK_LEFT`, `KICK_RIGHT`, `DIVE_LEFT`, `DIVE_RIGHT`, `GOAL`, `SAVE`, `MISS`, `RESET`.
-
-Drive transitions from the server `reveal` / snapshot history (`turnId`), never from speculative client prediction.
-
-## Replacement steps
-
-1. Drop sprites/atlas/clips under `apps/game-penalty/public/assets/` (or a future CDN with hashed URLs).
-2. Register keys in a preload/asset manifest scene.
-3. Map each `AnimState` to a sprite animation or short transparent clip.
-4. Keep ball/keeper motion keyed off reveal payload fields (`shot`, `dive`, `outcome`).
-5. Respect `prefers-reduced-motion` — skip tweens, show outcome text only.
-6. Do not let animation completion call any match-advance API; the server timeline is authoritative.
-
-Pre-rendered transparent 3D clips are fine later; gameplay logic must remain independent of art format.
+No rule, payment, or server-state changes are needed when replacing graphics.

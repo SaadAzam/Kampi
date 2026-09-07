@@ -11,7 +11,8 @@ export class PlayerState extends Schema {
   @type('number') score: number = 0;
   @type('boolean') connected: boolean = true;
   @type('boolean') choiceLocked: boolean = false;
-  @type('string') choice: RpsChoice | '' = '';
+  // Server-only: decorating this field would leak hidden choices through schema patches.
+  choice: RpsChoice | '' = '';
 }
 
 export class RoundState extends Schema {

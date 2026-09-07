@@ -3,45 +3,366 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Kampi Penalty Duel</title>
+    <meta name="theme-color" content="#080e1c" />
+    <title>Kampi · Penalty Duel</title>
     <style>
-      html,
-      body,
-      #app {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        background: #0b3d2e;
-        overflow: hidden;
-        touch-action: manipulation;
-        font-family: 'Segoe UI', system-ui, sans-serif;
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, sans-serif;
+        color: #edf4ff;
+        background: #080e1c;
       }
-      /* Screen-reader / e2e mirrors of Phaser HUD — not visible controls */
-      #kampi-meta {
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 0;
+      }
+      button,
+      input {
+        font: inherit;
+      }
+      button {
+        min-height: 48px;
+        border: 1px solid #344461;
+        border-radius: 12px;
+        padding: 12px 16px;
+        background: #1b2a43;
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      button:hover:not(:disabled) {
+        filter: brightness(1.15);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      :focus-visible {
+        outline: 3px solid #83c8ff;
+        outline-offset: 3px;
+      }
+      .duel {
+        max-width: 850px;
+        margin: auto;
+        padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+          max(20px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+        display: grid;
+        gap: 14px;
+      }
+      .duel > * {
+        min-width: 0;
+      }
+      .heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .eyebrow {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        color: #86a5d0;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 4px 0;
+      }
+      .rules-tag {
+        font-size: 11px;
+        border: 1px solid #2e4161;
+        border-radius: 20px;
+        padding: 7px 10px;
+        color: #a5bddb;
+      }
+      .scoreboard {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        background: #111d32;
+        border: 1px solid #243551;
+        border-radius: 16px;
+      }
+      .player {
+        font-size: 12px;
+        color: #9ab0cb;
+        overflow-wrap: anywhere;
+      }
+      .player:last-child {
+        text-align: right;
+      }
+      .score {
+        font-size: 30px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .stage {
+        position: relative;
+        border: 1px solid #2b4c5c;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #103b36;
+        aspect-ratio: 16/10;
+        width: 100%;
+        min-height: 0;
+      }
+      #app {
+        position: absolute;
+        inset: 0;
+      }
+      #app canvas {
+        display: block;
+      }
+      .result {
+        position: absolute;
+        inset: 45% 5% auto;
+        text-align: center;
+        font-size: clamp(22px, 5vw, 40px);
+        font-weight: 900;
+        text-shadow: 0 3px 20px #000;
+        pointer-events: none;
+      }
+      .turn {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      .role {
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .timer {
+        display: grid;
+        place-items: center;
+        min-width: 46px;
+        height: 42px;
+        background: #17263e;
+        border-radius: 12px;
+        font-weight: 800;
+        color: #83c8ff;
+        font-variant-numeric: tabular-nums;
+      }
+      .status {
+        min-height: 36px;
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #a7bed9;
+        overflow-wrap: anywhere;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .actions button {
+        min-height: 58px;
+        background: linear-gradient(135deg, #2668e7, #1551be);
+        font-size: 16px;
+      }
+      .actions button:last-child {
+        background: linear-gradient(135deg, #217f74, #126056);
+      }
+      .match-controls {
+        display: grid;
+        gap: 10px;
+      }
+      .primary {
+        background: #77dfa0;
+        color: #092a20;
+        border-color: transparent;
+      }
+      .secondary-controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .secondary-controls > * {
+        flex: 1;
+      }
+      .invite-form {
+        display: flex;
+        gap: 8px;
+      }
+      .invite-form input {
+        width: 0;
+        flex: 1;
+        min-width: 0;
+        border: 1px solid #344461;
+        border-radius: 12px;
+        background: #111d32;
+        color: white;
+        padding: 12px;
+        text-transform: uppercase;
+        font-size: 16px;
+      }
+      .invite {
+        padding: 12px;
+        border-radius: 12px;
+        background: #132d36;
+        color: #9aefcd;
+        overflow-wrap: anywhere;
+      }
+      .history {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .history span {
+        font-size: 10px;
+        padding: 5px 8px;
+        border-radius: 6px;
+        background: #18283d;
+        color: #afc7e6;
+      }
+      details {
+        font-size: 12px;
+        color: #98acc6;
+        line-height: 1.65;
+      }
+      summary {
+        cursor: pointer;
+        min-height: 30px;
+      }
+      .sr-only {
         position: absolute;
         width: 1px;
         height: 1px;
-        padding: 0;
-        margin: -1px;
         overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
+        clip-path: inset(50%);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (min-width: 680px) {
+        .duel {
+          grid-template-columns: minmax(0, 1.6fr) minmax(230px, 1fr);
+          align-items: start;
+        }
+        .heading,
+        .scoreboard {
+          grid-column: 1/-1;
+        }
+        .stage {
+          grid-column: 1;
+          grid-row: 3/8;
+          aspect-ratio: 4/5;
+        }
+        .turn,
+        .status,
+        .actions,
+        .match-controls,
+        details {
+          grid-column: 2;
+        }
+        .history {
+          grid-column: 1/-1;
+        }
+      }
+      @media (max-height: 500px) and (min-width: 600px) {
+        .duel {
+          grid-template-columns: 1fr 1fr;
+        }
+        .heading,
+        .scoreboard {
+          grid-column: 1;
+        }
+        .stage {
+          grid-column: 1;
+          grid-row: auto;
+          aspect-ratio: 16/9;
+        }
+        .turn {
+          grid-column: 2;
+          grid-row: 1;
+        }
+        .actions {
+          grid-column: 2;
+          grid-row: 2;
+        }
+        .match-controls {
+          grid-column: 2;
+          grid-row: 3;
+        }
+        .status,
+        details {
+          grid-column: 2;
+        }
+        .duel {
+          gap: 8px;
+        }
+        .scoreboard {
+          padding: 6px 12px;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-    <div id="kampi-meta" aria-live="polite">
-      <div data-testid="status">Ready</div>
-      <div data-testid="role"></div>
-      <div data-testid="score">0 - 0</div>
-      <div data-testid="match-id"></div>
-      <div data-testid="seat"></div>
-      <div data-testid="player-id"></div>
-      <div data-testid="result"></div>
-    </div>
+    <main class="duel">
+      <header class="heading">
+        <div>
+          <div class="eyebrow">KAMPI / THE ARENA</div>
+          <h1>Penalty Duel</h1>
+        </div>
+        <span class="rules-tag">1v1 · 3 kicks each</span>
+      </header>
+      <div class="scoreboard">
+        <span class="player" id="player-a">Player A</span
+        ><strong class="score" data-testid="score">0 - 0</strong
+        ><span class="player" id="player-b">Player B</span>
+      </div>
+      <div class="stage">
+        <div id="app" aria-label="Penalty pitch"></div>
+        <div class="result" data-testid="result" aria-live="polite"></div>
+      </div>
+      <div class="turn">
+        <span class="role" data-testid="role">Your next duel awaits</span
+        ><span class="timer" id="timer" aria-label="Seconds remaining">—</span>
+      </div>
+      <p class="status" data-testid="status" role="status">Getting ready…</p>
+      <div class="actions">
+        <button id="left" disabled>← Left</button><button id="right" disabled>Right →</button>
+      </div>
+      <section class="match-controls" aria-label="Matchmaking">
+        <button id="find" class="primary" disabled>Find match</button>
+        <div class="secondary-controls">
+          <button id="private" disabled>Challenge a friend</button
+          ><button id="cancel" hidden>Cancel search</button>
+        </div>
+        <form id="join-form" class="invite-form">
+          <input
+            id="invite-code"
+            aria-label="Invite code"
+            placeholder="Friend’s invite code"
+            maxlength="12"
+            autocomplete="off"
+            required
+          /><button id="join" disabled>Join</button>
+        </form>
+        <div class="invite" id="invite" hidden></div>
+      </section>
+      <details>
+        <summary>How to play</summary>
+        Pick left or right before the timer ends. As kicker, beat the keeper’s guess to score. As
+        keeper, match the shot to save. Choices stay hidden until the reveal. After three kicks
+        each, a tie goes to paired sudden-death kicks. Missing your kick counts as a miss; a keeper
+        timeout lets a valid shot score. Leaving an active match forfeits it. Chips are virtual.
+      </details>
+      <div class="history" id="history" aria-label="Completed kicks"></div>
+      <div class="sr-only">
+        <span data-testid="match-id"></span><span data-testid="seat"></span
+        ><span data-testid="player-id"></span>
+      </div>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

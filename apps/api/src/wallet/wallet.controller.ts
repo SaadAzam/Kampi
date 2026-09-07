@@ -1,10 +1,12 @@
+import { z } from 'zod';
+import { parseBody } from '../common/parse-body.js';
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Inject } from '@nestjs/common';
 import { PRISMA } from '../database/database.module.js';
 import type { PrismaClient } from '@kampi/database';
 import { AuthGuard } from '../auth/auth.guard.js';
-import { CurrentUser } from '../auth/current-user.decorator.js';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator.js';
 import { getWalletBalance } from '@kampi/domain';
 import { chipsToString } from '@kampi/contracts';
 
@@ -16,7 +18,7 @@ export class WalletController {
   @Get('balance')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  async balance(@CurrentUser() user: { id: string }) {
+  async balance(@CurrentUser() user: AuthUser) {
     const balance = await getWalletBalance(this.prisma, user.id);
     return { balance: chipsToString(balance) };
   }
@@ -24,11 +26,8 @@ export class WalletController {
   @Get('ledger')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  async ledger(
-    @CurrentUser() user: { id: string },
-    @Query('limit') limitRaw?: string,
-  ) {
-    const limit = Math.min(Number(limitRaw ?? 20), 100);
+  async ledger(@CurrentUser() user: AuthUser, @Query('limit') limitRaw?: string) {
+    const limit = parseBody(z.coerce.number().int().min(1).max(100), limitRaw ?? 20);
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
     if (!wallet) {
       return { entries: [] };

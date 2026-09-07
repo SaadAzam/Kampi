@@ -4,6 +4,17 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  nanoid@<3: 3.3.18
+  postcss@<8.5.23: 8.5.26
+  deepmerge-ts@<8: 8.0.0
+  '@colyseus/core>@colyseus/greeting-banner': 4.0.2
+
+patchedDependencies:
+  '@colyseus/core@0.16.25':
+    hash: swuymn2npaysdqsaxriigns64m
+    path: patches/@colyseus__core@0.16.25.patch
+
 importers:
 
   .:
@@ -224,7 +235,7 @@ importers:
     dependencies:
       '@colyseus/core':
         specifier: ^0.16.5
-        version: 0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
+        version: 0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
       '@colyseus/redis-presence':
         specifier: ^0.16.4
         version: 0.16.4(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
@@ -233,7 +244,7 @@ importers:
         version: 3.0.76
       '@colyseus/ws-transport':
         specifier: ^0.16.5
-        version: 0.16.5(@colyseus/core@0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))
+        version: 0.16.5(@colyseus/core@0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))
       '@kampi/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -482,7 +493,7 @@ importers:
     dependencies:
       '@colyseus/core':
         specifier: ^0.16.0
-        version: 0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
+        version: 0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
       '@kampi/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -566,6 +577,10 @@ packages:
     peerDependencies:
       '@colyseus/schema': ^3.0.0
       '@pm2/io': ^6.1.0
+
+  '@colyseus/greeting-banner@4.0.2':
+    resolution: {integrity: sha512-xjGxqX3bZqhE7BvsGl500zU01NTx7YbckGwCzFpOFsPwfcHRi/UIvwWS6wNp7JJFy2jlTSJhlbUUoQVAeCfcxQ==}
+    engines: {node: '>= 22.x'}
 
   '@colyseus/httpie@2.0.1':
     resolution: {integrity: sha512-JvABMZzPLiyrUsVj3ElXGORRDTu+NKzXHWd1uV1R1SThAKMm06cVW6bOyADARD65bs8JJoHNNbUkW8KoRvRDzA==}
@@ -2490,8 +2505,8 @@ packages:
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
-  deepmerge-ts@7.1.5:
-    resolution: {integrity: sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==}
+  deepmerge-ts@8.0.0:
+    resolution: {integrity: sha512-ICNjaP0ML+eSdEpJYQC46XiAn/UjAdwbEl0dE8p85ZTeNDinN4Kd4+9jS4OSAuH7st6eC7rQhsqTF5zIDaUm2g==}
     engines: {node: '>=16.0.0'}
 
   deepmerge@4.3.1:
@@ -3399,9 +3414,6 @@ packages:
     resolution: {integrity: sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA==}
     engines: {node: ^18.17.0 || >=20.5.0}
 
-  nanoid@2.1.11:
-    resolution: {integrity: sha512-s/snB+WGm6uwi0WjsZdaVcuf3KJXlfGl2LcxgwkEwJF0D/BWzVWAZW/XY4bFaiR7s0Jk3FPvlnepg1H1b1UwlA==}
-
   nanoid@3.3.18:
     resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -3617,10 +3629,6 @@ packages:
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
-
-  postcss@8.4.31:
-    resolution: {integrity: sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ==}
-    engines: {node: ^10 || ^12 || >=14}
 
   postcss@8.5.26:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
@@ -4447,17 +4455,19 @@ snapshots:
 
   '@colyseus/clock@1.0.1': {}
 
-  '@colyseus/core@0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)':
+  '@colyseus/core@0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)':
     dependencies:
-      '@colyseus/greeting-banner': link:packages/colyseus-greeting-shim
+      '@colyseus/greeting-banner': 4.0.2
       '@colyseus/msgpackr': 1.11.3
       '@colyseus/schema': 3.0.76
       '@colyseus/timer': 1.0.3
       '@pm2/io': 6.1.0
       debug: 4.4.3
-      nanoid: 2.1.11
+      nanoid: 3.3.18
     transitivePeerDependencies:
       - supports-color
+
+  '@colyseus/greeting-banner@4.0.2': {}
 
   '@colyseus/httpie@2.0.1': {}
 
@@ -4467,7 +4477,7 @@ snapshots:
 
   '@colyseus/redis-presence@0.16.4(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)':
     dependencies:
-      '@colyseus/core': 0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
+      '@colyseus/core': 0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
       ioredis: 5.11.1
     transitivePeerDependencies:
       - '@colyseus/schema'
@@ -4480,9 +4490,9 @@ snapshots:
     dependencies:
       '@colyseus/clock': 1.0.1
 
-  '@colyseus/ws-transport@0.16.5(@colyseus/core@0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))':
+  '@colyseus/ws-transport@0.16.5(@colyseus/core@0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))':
     dependencies:
-      '@colyseus/core': 0.16.25(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
+      '@colyseus/core': 0.16.25(patch_hash=swuymn2npaysdqsaxriigns64m)(@colyseus/schema@3.0.76)(@pm2/io@6.1.0)
       '@types/ws': 8.18.1
       ws: 8.21.3
     transitivePeerDependencies:
@@ -5229,7 +5239,7 @@ snapshots:
   '@prisma/config@6.19.3':
     dependencies:
       c12: 3.1.0
-      deepmerge-ts: 7.1.5
+      deepmerge-ts: 8.0.0
       effect: 3.21.0
       empathic: 2.0.0
     transitivePeerDependencies:
@@ -6188,7 +6198,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge-ts@7.1.5: {}
+  deepmerge-ts@8.0.0: {}
 
   deepmerge@4.3.1: {}
 
@@ -7303,8 +7313,6 @@ snapshots:
 
   mute-stream@2.0.0: {}
 
-  nanoid@2.1.11: {}
-
   nanoid@3.3.18: {}
 
   napi-postinstall@0.3.4: {}
@@ -7322,7 +7330,7 @@ snapshots:
       '@next/env': 15.5.25
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001810
-      postcss: 8.4.31
+      postcss: 8.5.26
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       styled-jsx: 5.1.6(react@19.2.8)
@@ -7525,12 +7533,6 @@ snapshots:
   pluralize@8.0.0: {}
 
   possible-typed-array-names@1.1.0: {}
-
-  postcss@8.4.31:
-    dependencies:
-      nanoid: 3.3.18
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
 
   postcss@8.5.26:
     dependencies:

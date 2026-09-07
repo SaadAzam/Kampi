@@ -49,6 +49,10 @@ export class FakeRoom implements ColyseusLikeRoom {
     this.handlers.set(type, list);
   }
 
+  disconnect(code: number): void {
+    this.leaveHandler?.(code);
+  }
+
   onLeave(callback: (code: number) => void): void {
     this.leaveHandler = callback;
   }
@@ -61,7 +65,10 @@ export class FakeRoom implements ColyseusLikeRoom {
 export class FakeClient implements ColyseusLikeClient {
   readonly rooms: FakeRoom[] = [];
 
-  async joinOrCreate(_roomName: string, _options?: Record<string, unknown>): Promise<ColyseusLikeRoom> {
+  async joinOrCreate(
+    _roomName: string,
+    _options?: Record<string, unknown>,
+  ): Promise<ColyseusLikeRoom> {
     const room = new FakeRoom();
     this.rooms.push(room);
     return room;

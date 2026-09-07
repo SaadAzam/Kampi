@@ -5,7 +5,7 @@ Unresolved product and technical decisions for Kampi.fun beyond this foundation:
 1. **First production game** — Confirm Rock Paper Scissors as launch title.
 2. **Game rules & economy** — Final entry fees, payouts, house edge, starting balance.
 3. **Branding & design** — Logo, colour system, typography, game art, audio.
-4. **Authentication** — Email/password, OAuth providers, phone OTP, guest policy in production.
+4. **Authentication** — Email/password is implemented for this phase; OAuth/phone OTP and production guest policy are still open.
 5. **Payment provider** — Stripe vs mobile IAP vs both; regional pricing.
 6. **Launch regions** — Countries/states; geo restrictions for virtual chips.
 7. **Expected concurrency** — Peak CCU for realtime scaling and Redis/Colyseus sizing.

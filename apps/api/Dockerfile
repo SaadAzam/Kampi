@@ -1,27 +1,19 @@
 FROM node:22-alpine AS base
 WORKDIR /app
-RUN corepack enable
+RUN corepack enable && apk add --no-cache openssl libc6-compat
 
-FROM base AS deps
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json apps/api/
-COPY packages/colyseus-greeting-shim/package.json packages/colyseus-greeting-shim/
-COPY packages/config/package.json packages/config/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/database/package.json packages/database/
-COPY packages/domain/package.json packages/domain/
+FROM base AS build
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps ./apps
+COPY packages ./packages
+COPY scripts ./scripts
 RUN pnpm install --frozen-lockfile --filter @kampi/api...
-
-FROM deps AS build
-COPY . .
 RUN pnpm db:generate
-RUN pnpm --filter @kampi/api build
+RUN pnpm --filter @kampi/api... build
 
-FROM node:22-alpine AS runner
+FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/api/package.json ./
+COPY --from=build /app /app
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "pnpm db:migrate && node apps/api/dist/main.js"]

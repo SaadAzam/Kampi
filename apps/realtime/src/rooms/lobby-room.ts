@@ -1,8 +1,9 @@
+import { authorizeRoom } from '../games/room-authorization.js';
 import { Room, Client, matchMaker } from '@colyseus/core';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@kampi/database';
-import { queueKeyString, type QueueKey, type Seat } from '@kampi/game-sdk/common';
-import { assertDistinctPlayers } from '@kampi/game-sdk/server';
+import { QueueKeySchema, queueKeyString, type QueueKey, type Seat } from '@kampi/game-sdk/common';
+import { CommandGuard, assertDistinctPlayers } from '@kampi/game-sdk/server';
 import { RPS_GAME_ID, RpsGameConfigSchema } from '@kampi/game-rps-core';
 import { PENALTY_GAME_ID, PenaltyGameConfigSchema } from '@kampi/game-penalty';
 import { authenticateToken } from '../auth.js';
@@ -55,6 +56,9 @@ function parseGameConfig(gameId: string, config: unknown) {
 }
 
 export class LobbyRoom extends Room {
+  private privateRequests = new Set<string>();
+  private pairing = new Set<string>();
+  private guards = new Map<string, CommandGuard>();
   private queues = new Map<string, QueueEntry[]>();
   private botTimers = new Map<string, NodeJS.Timeout>();
   private clientMeta = new Map<
@@ -69,16 +73,41 @@ export class LobbyRoom extends Room {
       client.leave();
     });
 
-    this.onMessage('create_private', (client, message: { gameId?: string }) => {
-      void this.handleCreatePrivate(client, message.gameId);
-    });
+    for (const type of ['create_private', 'join_private'] as const) {
+      this.onMessage(type, (client, raw: unknown) => {
+        if (!raw || typeof raw !== 'object') return;
+        const message = raw as { gameId?: unknown; inviteCode?: unknown };
+        if (message.gameId !== undefined && typeof message.gameId !== 'string') return;
+        if (message.inviteCode !== undefined && typeof message.inviteCode !== 'string') return;
+        void this.privateRequest(client, type, message.gameId, message.inviteCode);
+      });
+    }
+  }
 
-    this.onMessage(
-      'join_private',
-      (client, message: { gameId?: string; inviteCode?: string }) => {
-        void this.handleJoinPrivate(client, message.gameId, message.inviteCode);
-      },
-    );
+  private async privateRequest(
+    client: Client,
+    type: 'create_private' | 'join_private',
+    gameId?: string,
+    code?: string,
+  ) {
+    if (this.privateRequests.has(client.sessionId) || this.pairing.has(client.sessionId)) return;
+    const guard =
+      this.guards.get(client.sessionId) ??
+      new CommandGuard({ maxActionsPerWindow: 5, windowMs: 60000 });
+    this.guards.set(client.sessionId, guard);
+    try {
+      guard.assertRateLimit(Date.now());
+      this.privateRequests.add(client.sessionId);
+      if (type === 'create_private') await this.handleCreatePrivate(client, gameId);
+      else await this.handleJoinPrivate(client, gameId, code);
+    } catch {
+      client.send('error', {
+        code: 'INVALID_COMMAND',
+        message: 'Could not process invite. Please wait before retrying.',
+      });
+    } finally {
+      this.privateRequests.delete(client.sessionId);
+    }
   }
 
   override async onJoin(client: Client, options: JoinOptions) {
@@ -103,13 +132,13 @@ export class LobbyRoom extends Room {
       return;
     }
 
-    const queueKey: QueueKey = {
+    const queueKey = QueueKeySchema.parse({
       gameId,
       gameVersion: options.gameVersion ?? '1.0.0',
       mode: options.mode ?? 'PUBLIC',
       stakeKey: options.stakeKey ?? 'default',
       region: options.region ?? 'global',
-    };
+    });
 
     this.clientMeta.set(client.sessionId, {
       userId: player.userId,
@@ -120,9 +149,9 @@ export class LobbyRoom extends Room {
     if (options.action === 'create_private' || options.mode === 'PRIVATE') {
       // Wait for create_private / join_private messages unless invite provided at join
       if (options.action === 'join_private' && options.inviteCode) {
-        await this.handleJoinPrivate(client, gameId, options.inviteCode);
+        await this.privateRequest(client, 'join_private', gameId, options.inviteCode);
       } else if (options.action === 'create_private') {
-        await this.handleCreatePrivate(client, gameId);
+        await this.privateRequest(client, 'create_private', gameId);
       }
       return;
     }
@@ -183,7 +212,10 @@ export class LobbyRoom extends Room {
     const botDelay = config.botFillAfterMs || economy.botFillAfterMs;
 
     const registered = gameRegistry.get(queueKey.gameId);
-    if (registered.manifest.botCapable) {
+    if (
+      registered.manifest.botCapable &&
+      (this.queues.get(key) ?? []).some((item) => item.ticketId === ticketId)
+    ) {
       const timer = setTimeout(() => {
         void this.fillWithBot(entry);
       }, botDelay);
@@ -219,7 +251,7 @@ export class LobbyRoom extends Room {
 
   private async handleJoinPrivate(client: Client, gameIdInput?: string, inviteCode?: string) {
     const meta = this.clientMeta.get(client.sessionId);
-    if (!meta || !inviteCode) {
+    if (!meta || !inviteCode || !/^[A-Z0-9]{4,12}$/.test(inviteCode)) {
       client.send('error', { code: 'SESSION_NOT_FOUND', message: 'Missing invite code' });
       return;
     }
@@ -254,11 +286,18 @@ export class LobbyRoom extends Room {
       const m = this.clientMeta.get(c.sessionId);
       return m?.userId === session.creatorUserId;
     });
-    if (!creatorClient) {
+    if (
+      !creatorClient ||
+      this.pairing.has(creatorClient.sessionId) ||
+      this.pairing.has(client.sessionId)
+    ) {
       client.send('error', { code: 'SESSION_EXPIRED', message: 'Creator is no longer connected' });
       return;
     }
 
+    // Reserve both sockets synchronously before the first await so invite races cannot create two matches.
+    this.pairing.add(creatorClient.sessionId);
+    this.pairing.add(client.sessionId);
     await deletePrivateSession(this.presence, inviteCode);
     await this.createAndNotifyMatch(
       {
@@ -284,6 +323,9 @@ export class LobbyRoom extends Room {
   override async onLeave(client: Client) {
     const meta = this.clientMeta.get(client.sessionId);
     this.clientMeta.delete(client.sessionId);
+    this.guards.delete(client.sessionId);
+    this.privateRequests.delete(client.sessionId);
+    this.pairing.delete(client.sessionId);
     if (!meta?.ticketId) return;
 
     for (const [key, queue] of this.queues) {
@@ -343,11 +385,22 @@ export class LobbyRoom extends Room {
     void this.createAndNotifyMatch(entry, botEntry, true);
   }
 
-  private async createAndNotifyMatch(
-    player1: QueueEntry,
-    player2: QueueEntry,
-    botFill: boolean,
-  ) {
+  private async createAndNotifyMatch(player1: QueueEntry, player2: QueueEntry, botFill: boolean) {
+    try {
+      await this.doCreateAndNotifyMatch(player1, player2, botFill);
+    } catch (error) {
+      console.error('Match creation failed', error);
+      for (const player of [player1, player2]) {
+        this.pairing.delete(player.client.sessionId);
+        player.client.send('error', {
+          code: 'INTERNAL',
+          message: 'Could not start match. Please try again.',
+        });
+      }
+    }
+  }
+
+  private async doCreateAndNotifyMatch(player1: QueueEntry, player2: QueueEntry, botFill: boolean) {
     const isBot = botFill || player2.userId === 'bot';
     const gameId = player1.queueKey.gameId;
     const registered = gameRegistry.get(gameId);
@@ -401,28 +454,31 @@ export class LobbyRoom extends Room {
     const seatA: Seat = 'A';
     const seatB: Seat = 'B';
 
-    const room = await matchMaker.createRoom(registered.roomName, {
-      matchId,
-      botFill,
-      gameId,
-      playerA: {
-        userId: player1.userId,
-        displayName: player1.displayName,
-        seat: seatA,
-        kind: 'HUMAN',
-      },
-      playerB: {
-        userId: isBot ? 'bot' : player2.userId,
-        displayName: isBot ? 'Bot Opponent' : player2.displayName,
-        seat: seatB,
-        kind: isBot ? 'BOT' : 'HUMAN',
-      },
-      economy: {
-        entryFee: config.entryFee.toString(),
-        winnerPayout: config.winnerPayout.toString(),
-      },
-      versionConfig: version?.config ?? {},
-    });
+    const room = await matchMaker.createRoom(
+      registered.roomName,
+      authorizeRoom({
+        matchId,
+        botFill,
+        gameId,
+        playerA: {
+          userId: player1.userId,
+          displayName: player1.displayName,
+          seat: seatA,
+          kind: 'HUMAN',
+        },
+        playerB: {
+          userId: isBot ? 'bot' : player2.userId,
+          displayName: isBot ? 'Bot Opponent' : player2.displayName,
+          seat: seatB,
+          kind: isBot ? 'BOT' : 'HUMAN',
+        },
+        economy: {
+          entryFee: config.entryFee.toString(),
+          winnerPayout: config.winnerPayout.toString(),
+        },
+        versionConfig: version?.config ?? {},
+      }),
+    );
 
     player1.client.send('match_found', {
       matchId,
@@ -443,5 +499,11 @@ export class LobbyRoom extends Room {
         gameId,
       });
     }
+  }
+  override onDispose() {
+    for (const timer of this.botTimers.values()) clearTimeout(timer);
+    this.botTimers.clear();
+    this.queues.clear();
+    this.guards.clear();
   }
 }

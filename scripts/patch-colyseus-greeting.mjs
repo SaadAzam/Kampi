@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Colyseus 0.16 expects a default export string; greeting-banner 4.x only exports greet(). */
@@ -19,24 +19,17 @@ export function greet() {
 }
 `;
 
-function collectGreetingFiles(dir, results = []) {
-  if (!existsSync(dir)) return results;
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    let stat;
-    try {
-      stat = statSync(full);
-    } catch {
-      continue;
-    }
-    if (!stat.isDirectory()) continue;
-
-    if (entry === '@colyseus' && existsSync(join(full, 'greeting-banner', 'build', 'index.mjs'))) {
-      results.push(join(full, 'greeting-banner', 'build', 'index.mjs'));
-    }
-
-    if (entry === 'node_modules' || entry === '.pnpm' || entry.startsWith('@colyseus+')) {
-      collectGreetingFiles(full, results);
+function collectGreetingFiles(dir) {
+  const results = [];
+  const add = (root) => {
+    const file = join(root, '@colyseus', 'greeting-banner', 'build', 'index.mjs');
+    if (existsSync(file)) results.push(file);
+  };
+  add(dir); // hoisted linker
+  const store = join(dir, '.pnpm');
+  if (existsSync(store)) {
+    for (const entry of readdirSync(store)) {
+      if (entry.startsWith('@colyseus+greeting-banner@')) add(join(store, entry, 'node_modules'));
     }
   }
   return results;

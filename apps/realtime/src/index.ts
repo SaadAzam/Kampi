@@ -39,7 +39,8 @@ app.get('/health/ready', async (_req, res) => {
 
 const gameServer = new Server({
   transport: new WebSocketTransport({
-    server: app.listen(env.REALTIME_PORT, () => {
+    maxPayload: 16 * 1024,
+    server: app.listen(env.REALTIME_PORT, '0.0.0.0', () => {
       console.info(`Realtime listening on port ${env.REALTIME_PORT}`);
     }),
   }),

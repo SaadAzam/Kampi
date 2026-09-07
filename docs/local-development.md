@@ -62,7 +62,15 @@ Required variables are validated at startup — missing values produce a clear e
 
 ## Dev player
 
-Seed still creates a fixed single-player guest (`dev-guest-token-kampi-local-only`, 10,000 chips). Prefer `POST /auth/guest` for multiplayer.
+Seed still creates a fixed single-player guest (`dev-guest-token-kampi-local-only`, 10,000 chips). Prefer `POST /auth/guest` for multiplayer, or register/login:
+
+```bash
+curl -s -X POST http://localhost:4000/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@kampi.local","password":"password123","displayName":"You"}'
+```
+
+The web lobby persists the session in `localStorage` and can convert a guest into a registered account.
 
 ## Database workflows
 

@@ -1,3 +1,5 @@
+import { authenticateToken } from '../auth.js';
+import { assertRoomAuthorized } from '../games/room-authorization.js';
 import { Room, Client } from '@colyseus/core';
 import {
   createRandomSource,
@@ -9,6 +11,7 @@ import {
 import { prisma } from '@kampi/database';
 import { deductEntryFees, finalizeMatchPayout, refundAbortedMatch } from '@kampi/domain';
 import { SettlementCoordinator } from '@kampi/game-sdk/server';
+import { persistMatchOutcome } from '../games/persist-outcome.js';
 import { economy, ROUND_TIMEOUT_MS, BEST_OF } from '../config.js';
 import { PlayerState, RpsRoomState, RoundState, buildSnapshot } from './rps-state.js';
 
@@ -56,6 +59,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
   }
 
   override onCreate(options: {
+    creationProof?: string;
     matchId: string;
     player1?: JoinOptions;
     player2?: JoinOptions;
@@ -64,6 +68,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     botFill: boolean;
     economy?: { entryFee: string; winnerPayout: string };
   }) {
+    assertRoomAuthorized(options);
     const player1: JoinOptions = options.player1 ?? {
       userId: options.playerA?.userId,
       displayName: options.playerA?.displayName,
@@ -97,9 +102,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
       matchId: options.matchId,
       player1,
       player2,
-      entryFee: options.economy?.entryFee
-        ? BigInt(options.economy.entryFee)
-        : economy.rpsEntryFee,
+      entryFee: options.economy?.entryFee ? BigInt(options.economy.entryFee) : economy.rpsEntryFee,
       winnerPayout: options.economy?.winnerPayout
         ? BigInt(options.economy.winnerPayout)
         : economy.rpsWinnerPayout,
@@ -155,9 +158,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
       options.slot ??
       (options.seat ? seatToLegacySlot(options.seat) : undefined) ??
       (Array.from(this.state.players.values()).find((p) => p.userId && !p.sessionId)?.slot as
-        | 'PLAYER1'
-        | 'PLAYER2'
-        | undefined);
+        'PLAYER1' | 'PLAYER2' | undefined);
 
     if (!slot) {
       throw new Error('Invalid slot');
@@ -166,24 +167,14 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     if (!player) {
       throw new Error('Invalid slot');
     }
-    // Seat reservation: join must match reserved user when human
-    if (
-      player.kind === 'HUMAN' &&
-      options.authToken &&
-      options.userId &&
-      player.userId &&
-      options.userId !== player.userId
-    ) {
-      throw new Error('Seat reserved for another player');
+    const auth = options.authToken ? await authenticateToken(options.authToken) : null;
+    if (!auth || player.kind !== 'HUMAN' || player.userId !== auth.userId || player.sessionId) {
+      throw new Error('Unauthorized seat');
     }
     player.sessionId = client.sessionId;
     player.connected = true;
     client.send('snapshot', buildSnapshot(this.state, false));
     client.send('seat_assigned', { seat: slot === 'PLAYER1' ? 'A' : 'B', slot });
-
-    if (player.kind === 'BOT') {
-      this.scheduleBotChoice();
-    }
   }
 
   override async onLeave(client: Client, consented: boolean) {
@@ -295,11 +286,14 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
     const bot = this.state.players.get('PLAYER2');
     if (!bot || bot.kind !== 'BOT' || bot.choiceLocked || this.state.status !== 'ACTIVE') return;
 
-    setTimeout(() => {
-      if (!bot.choiceLocked && this.state.status === 'ACTIVE') {
-        this.submitBotChoice(this.random.pickChoice());
-      }
-    }, 500 + this.random.nextInt(1500));
+    setTimeout(
+      () => {
+        if (!bot.choiceLocked && this.state.status === 'ACTIVE') {
+          this.submitBotChoice(this.random.pickChoice());
+        }
+      },
+      500 + this.random.nextInt(1500),
+    );
   }
 
   private resolveCurrentRound(bothLocked: boolean) {
@@ -346,10 +340,7 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
 
     this.broadcast('snapshot', buildSnapshot(this.state, true));
 
-    const winner = isMatchComplete(
-      { PLAYER1: p1.score, PLAYER2: p2.score },
-      this.state.bestOf,
-    );
+    const winner = isMatchComplete({ PLAYER1: p1.score, PLAYER2: p2.score }, this.state.bestOf);
 
     if (winner) {
       void this.finishMatch(winner);
@@ -390,6 +381,19 @@ export class RpsRoom extends Room<RpsRoomState, RpsRoomMetadata> {
         data: { status: 'FINISHED', finalizedAt: new Date() },
       });
     }
+
+    const p1 = this.state.players.get('PLAYER1');
+    const p2 = this.state.players.get('PLAYER2');
+    await persistMatchOutcome({
+      matchId: this.state.matchId,
+      winnerSlot: winner === 'PLAYER1' ? 1 : 2,
+      winnerUserId:
+        winnerPlayer.kind === 'HUMAN' && winnerPlayer.userId ? winnerPlayer.userId : null,
+      scores: [
+        { slot: 1, score: p1?.score ?? 0 },
+        { slot: 2, score: p2?.score ?? 0 },
+      ],
+    });
 
     this.broadcast('snapshot', buildSnapshot(this.state, true));
     this.broadcast('match_completed', {

@@ -37,11 +37,30 @@ export const EnvelopeBaseSchema = z.object({
 });
 
 export const QueueKeySchema = z.object({
-  gameId: z.string(),
-  gameVersion: z.string().default('1.0.0'),
+  gameId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/),
+  gameVersion: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/)
+    .default('1.0.0'),
   mode: MatchModeSchema.default('PUBLIC'),
-  stakeKey: z.string().default('default'),
-  region: z.string().default('global'),
+  stakeKey: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/)
+    .default('default'),
+  region: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-zA-Z0-9._-]+$/)
+    .default('global'),
 });
 export type QueueKey = z.infer<typeof QueueKeySchema>;
 

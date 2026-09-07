@@ -1,27 +1,23 @@
 FROM node:22-alpine AS base
 WORKDIR /app
-RUN corepack enable
+RUN corepack enable && apk add --no-cache openssl libc6-compat
 
-FROM base AS deps
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/realtime/package.json apps/realtime/
-COPY packages/colyseus-greeting-shim/package.json packages/colyseus-greeting-shim/
-COPY packages/config/package.json packages/config/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/database/package.json packages/database/
-COPY packages/domain/package.json packages/domain/
-RUN pnpm install --frozen-lockfile --filter @kampi/realtime...
-
-FROM deps AS build
-COPY . .
+FROM base AS build
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps ./apps
+COPY packages ./packages
+COPY scripts ./scripts
+RUN pnpm install --frozen-lockfile
 RUN pnpm db:generate
-RUN pnpm --filter @kampi/realtime build
+RUN pnpm --filter @kampi/realtime... build
 
-FROM node:22-alpine AS runner
+FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/apps/realtime/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/realtime/package.json ./
+COPY --from=build /app /app
+# Docker COPY can drop pnpm workspace symlinks; Colyseus needs this package at runtime.
+RUN mkdir -p node_modules/@colyseus \
+  && rm -rf node_modules/@colyseus/greeting-banner \
+  && cp -a packages/colyseus-greeting-shim node_modules/@colyseus/greeting-banner
 EXPOSE 2567
-CMD ["node", "dist/index.js"]
+CMD ["node", "apps/realtime/dist/index.js"]

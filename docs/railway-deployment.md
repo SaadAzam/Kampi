@@ -1,32 +1,44 @@
 # Railway deployment
 
-Documentation only — do not run these commands until Railway projects are created.
+Kampi is a **multi-service** Railway project: API, realtime, web, two game clients, PostgreSQL, and Redis.
 
-## Recommended services
+## What Railway needs
 
-| Railway service | Root directory | Build | Start | Health |
-|-----------------|----------------|-------|-------|--------|
-| Web | `/` | `pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @kampi/web build` | `node apps/web/server.js` (standalone) | `GET /` |
-| API | `/` | `pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @kampi/api build` | `node apps/api/dist/main.js` | `GET /health/ready` |
-| Realtime | `/` | `pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @kampi/realtime build` | `node apps/realtime/dist/index.js` | `GET /health/ready` |
-| RPS client | `/` | `pnpm install --frozen-lockfile && pnpm --filter @kampi/game-rps build` | nginx static (`apps/game-rps/Dockerfile`) | `GET /health/live` |
-| PostgreSQL | Railway plugin | — | — | — |
-| Redis | Railway plugin | — | — | — |
+- Each app binds `0.0.0.0` and Railway's `PORT` (falls back to `API_PORT` / `REALTIME_PORT` locally).
+- Docker builds use the **repo root** as context and `apps/<service>/Dockerfile`.
+- API runs `pnpm db:migrate` on boot.
+- Staging can set `DEV_GUEST_AUTH_ENABLED=true` so you can play without registering.
 
-Use each app's `Dockerfile` for container builds if preferred.
+## CLI deploy (local upload)
 
-## Environment variables (all backend services)
+```bash
+# once
+npm i -g @railway/cli
+railway login
+
+railway init --name kampi
+railway add --database postgres
+railway add --database redis
+railway add --service api
+railway add --service realtime
+railway add --service web
+railway add --service game-rps
+railway add --service game-penalty
+```
+
+Generate a public domain for each public service (`railway domain --service api`, etc.), then set variables using those hostnames. Shared backend variables:
 
 ```text
-DATABASE_URL          # from Railway PostgreSQL
-REDIS_URL             # from Railway Redis
-JWT_SECRET            # ≥32 chars, unique per environment
-WEB_ORIGIN            # https://your-web.up.railway.app
-ADMIN_ORIGIN          # optional
-API_PUBLIC_URL        # https://your-api.up.railway.app
-REALTIME_PUBLIC_URL   # wss://your-realtime.up.railway.app
-GAME_RPS_PUBLIC_URL   # https://your-rps.up.railway.app
-DEV_GUEST_AUTH_ENABLED=false
+NODE_ENV=production
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+JWT_SECRET=<32+ chars>
+WEB_ORIGIN=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
+API_PUBLIC_URL=https://${{api.RAILWAY_PUBLIC_DOMAIN}}
+REALTIME_PUBLIC_URL=wss://${{realtime.RAILWAY_PUBLIC_DOMAIN}}
+GAME_RPS_PUBLIC_URL=https://${{game-rps.RAILWAY_PUBLIC_DOMAIN}}
+GAME_PENALTY_PUBLIC_URL=https://${{game-penalty.RAILWAY_PUBLIC_DOMAIN}}
+DEV_GUEST_AUTH_ENABLED=true
 STARTING_CHIPS=10000
 RPS_ENTRY_FEE=500
 RPS_WINNER_PAYOUT=950
@@ -34,50 +46,55 @@ BOT_FILL_AFTER_MS=10000
 RECONNECT_GRACE_MS=30000
 ```
 
-Web additionally needs:
+Web build arg / variable:
 
 ```text
-NEXT_PUBLIC_API_URL
-NEXT_PUBLIC_GAME_RPS_URL
+NEXT_PUBLIC_API_URL=https://${{api.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-Game RPS build:
+Game client build args:
 
 ```text
-VITE_REALTIME_PUBLIC_URL=wss://...
+VITE_REALTIME_PUBLIC_URL=wss://${{realtime.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-## Database migrations
+In each service's settings, set **Dockerfile path** to:
 
-Run before or during API/realtime deploy:
+| Service | Dockerfile |
+|---------|------------|
+| api | `apps/api/Dockerfile` |
+| realtime | `apps/realtime/Dockerfile` |
+| web | `apps/web/Dockerfile` |
+| game-rps | `apps/game-rps/Dockerfile` |
+| game-penalty | `apps/game-penalty/Dockerfile` |
+
+Then upload the current working tree (does not require a git push):
 
 ```bash
-pnpm db:generate
-pnpm db:migrate
-pnpm db:seed   # staging only, or custom seed
+railway up --service api --detach --yes
+railway up --service realtime --detach --yes
+railway up --service web --detach --yes
+railway up --service game-rps --detach --yes
+railway up --service game-penalty --detach --yes
 ```
 
-Recommended: one-off Railway deploy job or CI step that runs migrations against `DATABASE_URL`.
+Seed after the first API deploy:
+
+```bash
+railway run --service api pnpm db:seed
+```
+
+## Health
+
+| Service | Path |
+|---------|------|
+| API | `GET /health/ready` |
+| Realtime | `GET /health/ready` |
+| Web | `GET /` |
+| Game clients | `GET /health/live` |
 
 ## Staging vs production
 
-- Separate Railway projects or environments per stage
-- Distinct `DATABASE_URL`, `JWT_SECRET`, and public URLs
-- Never enable `DEV_GUEST_AUTH_ENABLED` in production unless explicitly intended
+- Distinct `JWT_SECRET`, databases, and public URLs per environment
 - Use Railway private networking between API, realtime, Postgres, and Redis when available
-
-## Ownership transfer
-
-1. Add the client's Railway team as project members with Admin role.
-2. Transfer project ownership from Settings → Transfer Project.
-3. Rotate all secrets (`JWT_SECRET`, database credentials) at cutover.
-4. Update DNS/custom domains in the client's Cloudflare or registrar.
-
-## Post-deploy checklist
-
-- [ ] Health endpoints return 200
-- [ ] Migrations applied
-- [ ] CORS origins match deployed URLs
-- [ ] WebSocket endpoint uses `wss://`
-- [ ] PWA manifest icons accessible
-- [ ] Guest auth disabled in production
+- Keep `DEV_GUEST_AUTH_ENABLED=false` on a real production project

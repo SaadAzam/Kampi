@@ -5,6 +5,7 @@ import {
   finalizeMatchPayout,
   refundAbortedMatch,
   WalletError,
+  deductEntryFees,
 } from './wallet.js';
 
 // In-memory mock using real Prisma would need DB; use integration tests in CI.
@@ -12,15 +13,40 @@ import {
 
 function createMockPrisma() {
   const wallets = new Map<string, { id: string; userId: string; balance: bigint }>();
-  const ledger = new Map<string, { id: string; balanceAfter: bigint; idempotencyKey: string }>();
+  const ledger = new Map<
+    string,
+    {
+      id: string;
+      balanceAfter: bigint;
+      idempotencyKey: string;
+      walletId: string;
+      amount: bigint;
+      type: WalletLedgerType;
+      matchId: string | null;
+      purchaseId: string | null;
+    }
+  >();
   const matches = new Map<
     string,
-    { id: string; status: string; payoutLedgerKey?: string; abortRefundKey?: string }
+    {
+      id: string;
+      status: string;
+      payoutLedgerKey?: string;
+      abortRefundKey?: string;
+      entryFee?: bigint;
+      winnerPayout?: bigint;
+    }
   >();
   let ledgerCounter = 0;
 
   const prisma = {
+    $queryRaw: vi.fn(async () => []),
     wallet: {
+      findUniqueOrThrow: vi.fn(async ({ where }: { where: { userId: string } }) => {
+        const wallet = [...wallets.values()].find((w) => w.userId === where.userId);
+        if (!wallet) throw new Error('Wallet missing');
+        return wallet;
+      }),
       findUnique: vi.fn(async ({ where }: { where: { userId: string } }) => {
         for (const w of wallets.values()) {
           if (w.userId === where.userId) return w;
@@ -38,17 +64,23 @@ function createMockPrisma() {
           for (const w of wallets.values()) {
             if (w.userId === where.userId) return w;
           }
-          const wallet = { id: `w-${wallets.size + 1}`, userId: create.userId, balance: create.balance };
+          const wallet = {
+            id: `w-${wallets.size + 1}`,
+            userId: create.userId,
+            balance: create.balance,
+          };
           wallets.set(wallet.id, wallet);
           return wallet;
         },
       ),
-      update: vi.fn(async ({ where, data }: { where: { id: string }; data: { balance: bigint } }) => {
-        const wallet = wallets.get(where.id);
-        if (!wallet) throw new Error('wallet not found');
-        wallet.balance = data.balance;
-        return wallet;
-      }),
+      update: vi.fn(
+        async ({ where, data }: { where: { id: string }; data: { balance: bigint } }) => {
+          const wallet = wallets.get(where.id);
+          if (!wallet) throw new Error('wallet not found');
+          wallet.balance = data.balance;
+          return wallet;
+        },
+      ),
     },
     walletLedgerEntry: {
       findUnique: vi.fn(async ({ where }: { where: { idempotencyKey: string } }) => {
@@ -72,6 +104,9 @@ function createMockPrisma() {
             amount: bigint;
             balanceAfter: bigint;
             idempotencyKey: string;
+            type: WalletLedgerType;
+            matchId?: string;
+            purchaseId?: string;
           };
         }) => {
           if (ledger.has(data.idempotencyKey)) {
@@ -85,6 +120,11 @@ function createMockPrisma() {
             id: `l-${++ledgerCounter}`,
             balanceAfter: data.balanceAfter,
             idempotencyKey: data.idempotencyKey,
+            walletId: data.walletId,
+            amount: data.amount,
+            type: data.type,
+            matchId: data.matchId ?? null,
+            purchaseId: data.purchaseId ?? null,
           };
           ledger.set(data.idempotencyKey, entry);
           return entry;
@@ -92,19 +132,29 @@ function createMockPrisma() {
       ),
     },
     match: {
-      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => matches.get(where.id) ?? null),
-      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const match = matches.get(where.id);
-        if (!match) throw new Error('match not found');
-        Object.assign(match, data);
-        return match;
-      }),
+      findUnique: vi.fn(
+        async ({ where }: { where: { id: string } }) => matches.get(where.id) ?? null,
+      ),
+      update: vi.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const match = matches.get(where.id);
+          if (!match) throw new Error('match not found');
+          Object.assign(match, data);
+          return match;
+        },
+      ),
     },
     matchPlayer: {
       findFirst: vi.fn(async () => ({ id: 'mp-1' })),
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
-    $transaction: vi.fn(async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)),
+    $transaction: vi.fn(
+      async (fn: (tx: Omit<typeof prisma, '$transaction'>) => Promise<unknown>) => {
+        const { $transaction: _transaction, ...tx } = prisma;
+        void _transaction;
+        return fn(tx);
+      },
+    ),
   };
 
   return { prisma: prisma as unknown as PrismaClient, wallets, ledger, matches };
@@ -133,34 +183,20 @@ describe('mutateWallet idempotency', () => {
     expect(second.balance).toBe(first.balance);
   });
 
-  it('resolves duplicate after unique constraint race outside aborted transaction', async () => {
-    const { prisma, wallets, ledger } = createMockPrisma();
-    wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 10000n });
-
-    ledger.set('entry:race:u-1', {
-      id: 'l-race',
-      balanceAfter: 9500n,
-      idempotencyKey: 'entry:race:u-1',
-    });
-
-    vi.spyOn(prisma.walletLedgerEntry, 'create').mockRejectedValueOnce(
-      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-        code: 'P2002',
-        clientVersion: 'test',
-        meta: { target: ['idempotencyKey'] },
-      }),
-    );
-
-    const result = await mutateWallet(prisma, {
+  it('rejects reuse of a key with a different amount', async () => {
+    const { prisma, wallets } = createMockPrisma();
+    wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 1000n });
+    const input = {
       userId: 'u-1',
-      amount: -500n,
+      amount: -100n,
       type: WalletLedgerType.MATCH_ENTRY,
-      idempotencyKey: 'entry:race:u-1',
+      idempotencyKey: 'one',
+    };
+    await mutateWallet(prisma, input);
+    await expect(mutateWallet(prisma, { ...input, amount: 100n })).rejects.toMatchObject({
+      code: 'IDEMPOTENCY_CONFLICT',
     });
-
-    expect(result.duplicate).toBe(true);
-    expect(result.balance).toBe(9500n);
-    expect(result.ledgerEntryId).toBe('l-race');
+    expect(wallets.get('w-1')?.balance).toBe(900n);
   });
 
   it('throws on insufficient funds', async () => {
@@ -182,7 +218,7 @@ describe('finalizeMatchPayout', () => {
   it('enforces single payout', async () => {
     const { prisma, wallets, matches } = createMockPrisma();
     wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 9000n });
-    matches.set('m-1', { id: 'm-1', status: 'ACTIVE' });
+    matches.set('m-1', { id: 'm-1', status: 'ACTIVE', entryFee: 500n, winnerPayout: 950n });
 
     const first = await finalizeMatchPayout(prisma, {
       matchId: 'm-1',
@@ -212,7 +248,7 @@ describe('refundAbortedMatch', () => {
   it('is idempotent via abortRefundKey', async () => {
     const { prisma, wallets, matches } = createMockPrisma();
     wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 9000n });
-    matches.set('m-1', { id: 'm-1', status: 'ACTIVE' });
+    matches.set('m-1', { id: 'm-1', status: 'ACTIVE', entryFee: 500n, winnerPayout: 950n });
 
     await refundAbortedMatch(prisma, {
       matchId: 'm-1',
@@ -231,5 +267,65 @@ describe('refundAbortedMatch', () => {
         abortRefundKey: 'abort:m-1',
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('settlement abuse prevention', () => {
+  it('does not mint chips when aborting before an entry debit', async () => {
+    const { prisma, wallets, matches, ledger } = createMockPrisma();
+    wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 100n });
+    matches.set('m-1', { id: 'm-1', status: 'WAITING', entryFee: 500n });
+    await refundAbortedMatch(prisma, {
+      matchId: 'm-1',
+      players: [{ userId: 'u-1', entryFeeKey: 'missing' }],
+      entryFee: 500n,
+      abortRefundKey: 'abort:m-1',
+    });
+    expect(wallets.get('w-1')?.balance).toBe(100n);
+    expect(ledger.size).toBe(0);
+  });
+
+  it('refunds the actual debit, ignoring a caller-supplied refund amount', async () => {
+    const { prisma, wallets, matches } = createMockPrisma();
+    wallets.set('w-1', { id: 'w-1', userId: 'u-1', balance: 1000n });
+    matches.set('m-1', { id: 'm-1', status: 'WAITING', entryFee: 500n });
+    await deductEntryFees(prisma, {
+      matchId: 'm-1',
+      players: [{ userId: 'u-1', slot: 1, entryFeeKey: 'entry:m-1:u-1' }],
+      entryFee: 500n,
+    });
+    await refundAbortedMatch(prisma, {
+      matchId: 'm-1',
+      players: [{ userId: 'u-1', entryFeeKey: 'entry:m-1:u-1' }],
+      entryFee: 999999n,
+      abortRefundKey: 'abort:m-1',
+    });
+    expect(wallets.get('w-1')?.balance).toBe(1000n);
+  });
+
+  it('rejects refunds after a finished match', async () => {
+    const { prisma, matches } = createMockPrisma();
+    matches.set('m-1', { id: 'm-1', status: 'FINISHED' });
+    await expect(
+      refundAbortedMatch(prisma, {
+        matchId: 'm-1',
+        players: [],
+        entryFee: 500n,
+        abortRefundKey: 'abort:m-1',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+  });
+
+  it('rejects a payout different from the stored economy', async () => {
+    const { prisma, matches } = createMockPrisma();
+    matches.set('m-1', { id: 'm-1', status: 'ACTIVE', winnerPayout: 950n });
+    await expect(
+      finalizeMatchPayout(prisma, {
+        matchId: 'm-1',
+        winnerUserId: 'u-1',
+        payout: 99999n,
+        payoutLedgerKey: 'payout:m-1',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
   });
 });

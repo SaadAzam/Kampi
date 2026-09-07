@@ -1,12 +1,9 @@
+import { assertRoomAuthorized } from '../games/room-authorization.js';
 import { randomUUID } from 'node:crypto';
 import { Room, Client } from '@colyseus/core';
 import { prisma } from '@kampi/database';
 import { deductEntryFees, finalizeMatchPayout, refundAbortedMatch } from '@kampi/domain';
-import {
-  createRandomProvider,
-  type RandomProvider,
-  type Seat,
-} from '@kampi/game-sdk/common';
+import { createRandomProvider, type RandomProvider, type Seat } from '@kampi/game-sdk/common';
 import { CommandGuard, DeadlineScheduler, SettlementCoordinator } from '@kampi/game-sdk/server';
 import {
   PENALTY_GAME_ID,
@@ -29,6 +26,7 @@ import {
   type TurnOutcome,
 } from '@kampi/game-penalty';
 import { authenticateToken } from '../auth.js';
+import { persistMatchOutcome } from '../games/persist-outcome.js';
 import { economy } from '../config.js';
 
 type SeatPlayer = {
@@ -131,6 +129,7 @@ export class PenaltyDuelRoom extends Room {
     refundAbortedMatch: (input) => refundAbortedMatch(prisma, input),
   });
   private botFill = false;
+  private terminalPublished = false;
 
   override maxClients = 2;
 
@@ -139,6 +138,7 @@ export class PenaltyDuelRoom extends Room {
   }
 
   override onCreate(options: {
+    creationProof?: string;
     matchId: string;
     botFill: boolean;
     gameId: string;
@@ -147,6 +147,7 @@ export class PenaltyDuelRoom extends Room {
     economy: { entryFee: string; winnerPayout: string };
     versionConfig: unknown;
   }) {
+    assertRoomAuthorized(options);
     this.matchId = options.matchId;
     this.botFill = options.botFill;
     this.config = PenaltyGameConfigSchema.parse(options.versionConfig ?? {});
@@ -161,11 +162,16 @@ export class PenaltyDuelRoom extends Room {
     });
 
     this.onMessage('request_snapshot', (client) => {
-      const seat = [...this.players.entries()].find(([, p]) => p.sessionId === client.sessionId)?.[0];
+      const seat = [...this.players.entries()].find(
+        ([, p]) => p.sessionId === client.sessionId,
+      )?.[0];
       if (seat) client.send('snapshot', this.buildSnapshot(seat));
     });
 
-    void this.startMatch();
+    this.autoDispose = false;
+    this.deadlines.schedule(this.config.reconnectGraceMs, () => {
+      if (this.phase === 'WAITING_FOR_PLAYERS') void this.abort('Players did not connect in time');
+    });
   }
 
   private setupSeat(seat: Seat, player: SeatPlayer) {
@@ -180,7 +186,9 @@ export class PenaltyDuelRoom extends Room {
   }
 
   private async startMatch() {
+    if (this.phase !== 'WAITING_FOR_PLAYERS') return;
     this.phase = 'STARTING';
+    this.deadlines.clearAll();
     try {
       const humans = [...this.players.entries()].filter(([, p]) => p.kind === 'HUMAN');
       await this.settlement.deductEntries({
@@ -211,12 +219,15 @@ export class PenaltyDuelRoom extends Room {
     }
   }
 
-  override async onJoin(client: Client, options: {
-    authToken?: string;
-    seat?: Seat;
-    matchId?: string;
-    gameId?: string;
-  }) {
+  override async onJoin(
+    client: Client,
+    options: {
+      authToken?: string;
+      seat?: Seat;
+      matchId?: string;
+      gameId?: string;
+    },
+  ) {
     if (!options.authToken) throw new Error('Unauthorized');
     const auth = await authenticateToken(options.authToken);
     if (!auth) throw new Error('Unauthorized');
@@ -229,7 +240,7 @@ export class PenaltyDuelRoom extends Room {
 
     if (!seat) throw new Error('No seat');
     const player = this.players.get(seat);
-    if (!player || player.userId !== auth.userId) {
+    if (!player || player.kind !== 'HUMAN' || player.userId !== auth.userId || player.sessionId) {
       throw new Error('Seat reserved for another player');
     }
 
@@ -238,6 +249,8 @@ export class PenaltyDuelRoom extends Room {
     this.guards.set(client.sessionId, new CommandGuard());
     client.send('snapshot', this.buildSnapshot(seat));
     client.send('seat_assigned', { seat });
+    if ([...this.players.values()].every((p) => p.connected)) await this.startMatch();
+    this.broadcastSnapshot();
   }
 
   override async onLeave(client: Client, consented: boolean) {
@@ -246,6 +259,7 @@ export class PenaltyDuelRoom extends Room {
     const [seat, player] = entry;
     if (player.kind === 'BOT') return;
     player.connected = false;
+    this.broadcastSnapshot();
 
     if (this.phase === 'FINISHED' || this.phase === 'ABORTED') return;
 
@@ -256,9 +270,12 @@ export class PenaltyDuelRoom extends Room {
     try {
       if (consented) throw new Error('consented leave');
       // Never replace human with bot mid-match
-      await this.allowReconnection(client, graceSeconds);
+      const restored = await this.allowReconnection(client, graceSeconds);
+      player.sessionId = restored.sessionId;
       player.connected = true;
-      client.send('snapshot', this.buildSnapshot(seat));
+      this.guards.set(restored.sessionId, new CommandGuard());
+      this.broadcastSnapshot();
+      restored.send('snapshot', this.buildSnapshot(seat));
       await prisma.matchEvent.create({
         data: {
           matchId: this.matchId,
@@ -267,17 +284,19 @@ export class PenaltyDuelRoom extends Room {
         },
       });
     } catch {
+      if (this.isTerminal()) return;
       player.connected = false;
+      if (this.phase === 'WAITING_FOR_PLAYERS') {
+        await this.abort('Player left before the match started');
+        return;
+      }
       const opponent = this.players.get(oppositeSeat(seat));
-      if (opponent?.kind === 'HUMAN' && opponent.connected) {
+      if (opponent?.connected) {
         await this.finishForfeit(oppositeSeat(seat));
-      } else if (
-        this.sequence === 0 &&
-        this.revealedHistory.length === 0
-      ) {
+      } else if (this.sequence === 0 && this.revealedHistory.length === 0) {
         await this.abort('Both players unavailable before meaningful play');
       } else {
-        await this.finishForfeit(oppositeSeat(seat));
+        await this.abort('Both players disconnected');
       }
     }
   }
@@ -325,6 +344,13 @@ export class PenaltyDuelRoom extends Room {
         type: 'submit_action',
         ...(typeof raw === 'object' && raw !== null ? raw : {}),
       });
+      if (
+        command.protocolVersion !== '1.0.0' ||
+        (command.matchId && command.matchId !== this.matchId)
+      ) {
+        client.send('error', { code: 'INVALID_COMMAND', message: 'Wrong protocol or match' });
+        return;
+      }
       if (command.gameId !== PENALTY_GAME_ID) {
         client.send('error', { code: 'UNSUPPORTED_GAME', message: 'Wrong game' });
         return;
@@ -335,6 +361,11 @@ export class PenaltyDuelRoom extends Room {
       }
       if (!this.activeTurnId || command.turnId !== this.activeTurnId) {
         client.send('error', { code: 'WRONG_TURN', message: 'Stale turn' });
+        return;
+      }
+      if (Date.now() >= this.activeDeadlineAt) {
+        this.resolveTurn(true);
+        client.send('error', { code: 'TURN_EXPIRED', message: 'The turn has ended' });
         return;
       }
       if (guard.checkIdempotency(command.commandId) === 'duplicate') {
@@ -381,6 +412,10 @@ export class PenaltyDuelRoom extends Room {
     commandId: string,
   ) {
     if (this.phase !== 'AWAITING_ACTIONS') return;
+    if (Date.now() >= this.activeDeadlineAt) {
+      this.resolveTurn(true);
+      return;
+    }
     if (role === 'KICKER') {
       if (this.pending.shot) return;
       this.pending.shot = direction;
@@ -389,13 +424,15 @@ export class PenaltyDuelRoom extends Room {
       this.pending.dive = direction;
     }
 
-    void prisma.matchEvent.create({
-      data: {
-        matchId: this.matchId,
-        type: 'CHOICE_SUBMITTED',
-        payload: { seat, role, commandId, turnId: this.activeTurnId },
-      },
-    });
+    void prisma.matchEvent
+      .create({
+        data: {
+          matchId: this.matchId,
+          type: 'CHOICE_SUBMITTED',
+          payload: { seat, role, commandId, turnId: this.activeTurnId },
+        },
+      })
+      .catch((error) => console.error('Penalty audit failed', error));
 
     this.broadcastSnapshot();
 
@@ -444,13 +481,15 @@ export class PenaltyDuelRoom extends Room {
     };
     this.revealedHistory.push(revealed);
 
-    void prisma.matchEvent.create({
-      data: {
-        matchId: this.matchId,
-        type: 'ROUND_RESOLVED',
-        payload: revealed,
-      },
-    });
+    void prisma.matchEvent
+      .create({
+        data: {
+          matchId: this.matchId,
+          type: 'ROUND_RESOLVED',
+          payload: revealed,
+        },
+      })
+      .catch((error) => console.error('Penalty audit failed', error));
 
     this.broadcast('turn_revealed', revealed);
     this.broadcastSnapshot();
@@ -483,48 +522,77 @@ export class PenaltyDuelRoom extends Room {
     });
   }
 
+  private isTerminal() {
+    return this.phase === 'FINISHED' || this.phase === 'ABORTED';
+  }
+
   private async finish(winnerSeat: Seat, reason: FinishReason) {
-    if (this.settlement.isFinalized) return;
+    if (this.isTerminal()) return;
     this.phase = 'FINISHED';
     this.winnerSeat = winnerSeat;
     this.finishReason = reason;
     this.deadlines.clearAll();
 
-    const winner = this.players.get(winnerSeat);
-    await prisma.matchEvent.create({
-      data: {
-        matchId: this.matchId,
-        type: 'MATCH_FINISHED',
-        payload: {
+    const complete = async (): Promise<void> => {
+      try {
+        const winner = this.players.get(winnerSeat);
+        await prisma.matchEvent.create({
+          data: {
+            matchId: this.matchId,
+            type: 'MATCH_FINISHED',
+            payload: {
+              winnerSeat,
+              reason,
+              scores: { A: this.players.get('A')?.score, B: this.players.get('B')?.score },
+            },
+          },
+        });
+
+        if (winner?.kind === 'HUMAN' && winner.userId) {
+          await this.settlement.payWinner({
+            matchId: this.matchId,
+            winnerUserId: winner.userId,
+            payout: this.winnerPayout,
+            payoutLedgerKey: `payout:${this.matchId}`,
+          });
+        } else {
+          await prisma.match.update({
+            where: { id: this.matchId },
+            data: { status: 'FINISHED', finalizedAt: new Date() },
+          });
+          this.settlement.markFinalized();
+        }
+
+        const playerA = this.players.get('A');
+        const playerB = this.players.get('B');
+        await persistMatchOutcome({
+          matchId: this.matchId,
+          winnerSlot: winnerSeat === 'A' ? 1 : 2,
+          winnerUserId: winner?.kind === 'HUMAN' && winner.userId ? winner.userId : null,
+          scores: [
+            { slot: 1, score: playerA?.score ?? 0 },
+            { slot: 2, score: playerB?.score ?? 0 },
+          ],
+        });
+
+        this.terminalPublished = true;
+        this.broadcastSnapshot();
+        this.broadcast('match_completed', {
           winnerSeat,
-          reason,
-          scores: { A: this.players.get('A')?.score, B: this.players.get('B')?.score },
-        },
-      },
-    });
-
-    if (winner?.kind === 'HUMAN' && winner.userId) {
-      await this.settlement.payWinner({
-        matchId: this.matchId,
-        winnerUserId: winner.userId,
-        payout: this.winnerPayout,
-        payoutLedgerKey: `payout:${this.matchId}`,
-      });
-    } else {
-      this.settlement.markFinalized();
-      await prisma.match.update({
-        where: { id: this.matchId },
-        data: { status: 'FINISHED', finalizedAt: new Date() },
-      });
-    }
-
-    this.broadcastSnapshot();
-    this.broadcast('match_completed', {
-      winnerSeat,
-      finishReason: reason,
-      payout: winner?.kind === 'HUMAN' ? this.winnerPayout.toString() : null,
-    });
-    setTimeout(() => this.disconnect(), 5000);
+          finishReason: reason,
+          payout: winner?.kind === 'HUMAN' ? this.winnerPayout.toString() : null,
+        });
+        this.deadlines.schedule(5000, () => {
+          void this.disconnect();
+        });
+      } catch (error) {
+        console.error('Penalty settlement failed; retrying', error);
+        this.deadlines.schedule(2000, () => {
+          void complete();
+        });
+      }
+    };
+    await complete();
   }
 
   private async finishForfeit(winnerSeat: Seat) {
@@ -532,7 +600,7 @@ export class PenaltyDuelRoom extends Room {
   }
 
   private async abort(reason: string) {
-    if (this.settlement.isFinalized) return;
+    if (this.isTerminal()) return;
     this.phase = 'ABORTED';
     this.abortReason = reason;
     this.finishReason = 'ABORT';
@@ -545,23 +613,36 @@ export class PenaltyDuelRoom extends Room {
         entryFeeKey: `entry:${this.matchId}:${p.userId}`,
       }));
 
-    await this.settlement.abortRefund({
-      matchId: this.matchId,
-      players,
-      entryFee: this.entryFee,
-      abortRefundKey: `abort:${this.matchId}`,
-    });
+    const complete = async (): Promise<void> => {
+      try {
+        await this.settlement.abortRefund({
+          matchId: this.matchId,
+          players,
+          entryFee: this.entryFee,
+          abortRefundKey: `abort:${this.matchId}`,
+        });
 
-    await prisma.matchEvent.create({
-      data: {
-        matchId: this.matchId,
-        type: 'MATCH_ABORTED',
-        payload: { reason },
-      },
-    });
+        await prisma.matchEvent.create({
+          data: {
+            matchId: this.matchId,
+            type: 'MATCH_ABORTED',
+            payload: { reason },
+          },
+        });
 
-    this.broadcastSnapshot();
-    setTimeout(() => this.disconnect(), 3000);
+        this.terminalPublished = true;
+        this.broadcastSnapshot();
+        this.deadlines.schedule(3000, () => {
+          void this.disconnect();
+        });
+      } catch (error) {
+        console.error('Penalty refund failed; retrying', error);
+        this.deadlines.schedule(2000, () => {
+          void complete();
+        });
+      }
+    };
+    await complete();
   }
 
   private buildSnapshot(yourSeat?: Seat): PenaltySnapshot {
@@ -575,7 +656,7 @@ export class PenaltyDuelRoom extends Room {
       gameId: PENALTY_GAME_ID,
       gameVersion: '1.0.0',
       protocolVersion: '1.0.0',
-      phase: this.phase,
+      phase: this.isTerminal() && !this.terminalPublished ? 'NEXT_TURN' : this.phase,
       serverNow: Date.now(),
       players: [...this.players.entries()].map(([seat, p]) => ({
         seat,

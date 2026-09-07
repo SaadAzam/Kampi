@@ -51,102 +51,70 @@ export async function getWalletBalance(prisma: DbClient, userId: string): Promis
   return wallet?.balance ?? 0n;
 }
 
-/** Idempotent wallet credit/debit. Negative amount debits. */
+/** Every financial operation runs in one transaction; nested callers reuse theirs. */
+async function atomic<T>(
+  db: DbClient,
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  if ('$transaction' in db) return db.$transaction(run);
+  return run(db);
+}
+
+async function lockMatch(tx: Prisma.TransactionClient, matchId: string) {
+  await tx.$queryRaw`SELECT id FROM "Match" WHERE id = ${matchId}::uuid FOR UPDATE`;
+  const match = await tx.match.findUnique({ where: { id: matchId } });
+  if (!match) throw new MatchSettlementError('Match not found', 'NOT_FOUND');
+  return match;
+}
+
+/** Serialize on the wallet row, so distinct concurrent debits cannot spend the same chips. */
 export async function mutateWallet(
-  prisma: DbClient,
+  db: DbClient,
   input: WalletMutationInput,
-): Promise<{ balance: bigint; ledgerEntryId: string; duplicate: boolean }> {
-  const duplicateResult = async (): Promise<{
-    balance: bigint;
-    ledgerEntryId: string;
-    duplicate: true;
-  }> => {
-    const duplicate = await prisma.walletLedgerEntry.findUniqueOrThrow({
+): Promise<{
+  balance: bigint;
+  ledgerEntryId: string;
+  duplicate: boolean;
+}> {
+  return atomic(db, async (tx) => {
+    const initial = await getOrCreateWallet(tx, input.userId);
+    await tx.$queryRaw`SELECT id FROM "Wallet" WHERE id = ${initial.id}::uuid FOR UPDATE`;
+    const wallet = await tx.wallet.findUniqueOrThrow({ where: { userId: input.userId } });
+    const existing = await tx.walletLedgerEntry.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
     });
-    return {
-      balance: duplicate.balanceAfter,
-      ledgerEntryId: duplicate.id,
-      duplicate: true,
-    };
-  };
-
-  const existing = await prisma.walletLedgerEntry.findUnique({
-    where: { idempotencyKey: input.idempotencyKey },
-  });
-  if (existing) {
-    return {
-      balance: existing.balanceAfter,
-      ledgerEntryId: existing.id,
-      duplicate: true,
-    };
-  }
-
-  const apply = async (tx: DbClient) => {
-    const raced = await tx.walletLedgerEntry.findUnique({
-      where: { idempotencyKey: input.idempotencyKey },
-    });
-    if (raced) {
-      return {
-        balance: raced.balanceAfter,
-        ledgerEntryId: raced.id,
-        duplicate: true as const,
-      };
+    if (existing) {
+      if (
+        existing.walletId !== wallet.id ||
+        existing.amount !== input.amount ||
+        existing.type !== input.type ||
+        existing.matchId !== (input.matchId ?? null) ||
+        existing.purchaseId !== (input.purchaseId ?? null)
+      ) {
+        throw new WalletError(
+          'Idempotency key belongs to a different mutation',
+          'IDEMPOTENCY_CONFLICT',
+        );
+      }
+      return { balance: existing.balanceAfter, ledgerEntryId: existing.id, duplicate: true };
     }
-
-    const wallet = await getOrCreateWallet(tx, input.userId);
-
-    const newBalance = wallet.balance + input.amount;
-    if (newBalance < 0n) {
-      throw new WalletError('Insufficient chips', 'INSUFFICIENT_FUNDS');
-    }
-
-    const ledgerEntry = await tx.walletLedgerEntry.create({
+    const balance = wallet.balance + input.amount;
+    if (balance < 0n) throw new WalletError('Insufficient chips', 'INSUFFICIENT_FUNDS');
+    const entry = await tx.walletLedgerEntry.create({
       data: {
         walletId: wallet.id,
-        type: input.type,
         amount: input.amount,
-        balanceAfter: newBalance,
+        balanceAfter: balance,
+        type: input.type,
         idempotencyKey: input.idempotencyKey,
         matchId: input.matchId,
         purchaseId: input.purchaseId,
         metadata: input.metadata,
       },
     });
-
-    await tx.wallet.update({
-      where: { id: wallet.id },
-      data: { balance: newBalance },
-    });
-
-    return {
-      balance: newBalance,
-      ledgerEntryId: ledgerEntry.id,
-      duplicate: false as const,
-    };
-  };
-
-  const isRootClient =
-    '$transaction' in prisma && typeof prisma.$transaction === 'function';
-
-  try {
-    if (isRootClient) {
-      return await (prisma as PrismaClient).$transaction(async (tx) => apply(tx));
-    }
-    return await apply(prisma);
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      if (isRootClient) {
-        // Postgres aborts the transaction on unique violation — resolve outside it.
-        return duplicateResult();
-      }
-      throw new WalletError(
-        'Duplicate idempotency key during nested transaction',
-        'IDEMPOTENCY_CONFLICT',
-      );
-    }
-    throw error;
-  }
+    await tx.wallet.update({ where: { id: wallet.id }, data: { balance } });
+    return { balance, ledgerEntryId: entry.id, duplicate: false };
+  });
 }
 
 export type DeductEntryFeesInput = {
@@ -155,20 +123,38 @@ export type DeductEntryFeesInput = {
   entryFee: bigint;
 };
 
-export async function deductEntryFees(
-  prisma: DbClient,
-  input: DeductEntryFeesInput,
-): Promise<void> {
-  for (const player of input.players) {
-    await mutateWallet(prisma, {
-      userId: player.userId,
-      amount: -input.entryFee,
-      type: WalletLedgerType.MATCH_ENTRY,
-      idempotencyKey: player.entryFeeKey,
-      matchId: input.matchId,
-      metadata: { slot: player.slot },
-    });
-  }
+export async function deductEntryFees(db: DbClient, input: DeductEntryFeesInput): Promise<void> {
+  await atomic(db, async (tx) => {
+    const match = await lockMatch(tx, input.matchId);
+    if (
+      match.status !== MatchStatus.WAITING ||
+      input.entryFee < 0n ||
+      match.entryFee !== input.entryFee
+    ) {
+      throw new MatchSettlementError('Invalid match entry', 'INVALID_STATE');
+    }
+    // Stable order also prevents lock inversion between concurrent matches.
+    for (const player of [...input.players].sort((a, b) => a.userId.localeCompare(b.userId))) {
+      const seat = await tx.matchPlayer.findFirst({
+        where: {
+          matchId: input.matchId,
+          userId: player.userId,
+          slot: player.slot,
+          kind: 'HUMAN',
+          entryFeeKey: player.entryFeeKey,
+        },
+      });
+      if (!seat) throw new MatchSettlementError('Player is not in match', 'INVALID_STATE');
+      await mutateWallet(tx, {
+        userId: player.userId,
+        amount: -input.entryFee,
+        type: WalletLedgerType.MATCH_ENTRY,
+        idempotencyKey: player.entryFeeKey,
+        matchId: input.matchId,
+        metadata: { slot: player.slot },
+      });
+    }
+  });
 }
 
 export type FinalizeMatchPayoutInput = {
@@ -179,41 +165,45 @@ export type FinalizeMatchPayoutInput = {
 };
 
 export async function finalizeMatchPayout(
-  prisma: DbClient,
+  db: DbClient,
   input: FinalizeMatchPayoutInput,
 ): Promise<{ paid: boolean }> {
-  const match = await prisma.match.findUnique({ where: { id: input.matchId } });
-  if (!match) throw new MatchSettlementError('Match not found', 'NOT_FOUND');
-  if (match.status === MatchStatus.FINISHED && match.payoutLedgerKey) {
-    return { paid: false };
-  }
-  if (match.status !== MatchStatus.RESOLVING && match.status !== MatchStatus.ACTIVE) {
-    throw new MatchSettlementError(`Cannot payout match in status ${match.status}`, 'INVALID_STATE');
-  }
-
-  const result = await mutateWallet(prisma, {
-    userId: input.winnerUserId,
-    amount: input.payout,
-    type: WalletLedgerType.MATCH_PAYOUT,
-    idempotencyKey: input.payoutLedgerKey,
-    matchId: input.matchId,
+  return atomic(db, async (tx) => {
+    const match = await lockMatch(tx, input.matchId);
+    if (match.status === MatchStatus.FINISHED) return { paid: false };
+    if (
+      ![MatchStatus.ACTIVE, MatchStatus.RESOLVING].some((status) => status === match.status) ||
+      input.payout < 0n ||
+      input.payout !== match.winnerPayout
+    ) {
+      throw new MatchSettlementError('Invalid match payout', 'INVALID_STATE');
+    }
+    const winner = await tx.matchPlayer.findFirst({
+      where: {
+        matchId: input.matchId,
+        userId: input.winnerUserId,
+        kind: 'HUMAN',
+      },
+    });
+    if (!winner) throw new MatchSettlementError('Winner is not in match', 'INVALID_STATE');
+    const result = await mutateWallet(tx, {
+      userId: input.winnerUserId,
+      amount: input.payout,
+      type: WalletLedgerType.MATCH_PAYOUT,
+      idempotencyKey: input.payoutLedgerKey,
+      matchId: input.matchId,
+    });
+    await tx.match.update({
+      where: { id: input.matchId },
+      data: {
+        status: MatchStatus.FINISHED,
+        finalizedAt: new Date(),
+        payoutLedgerKey: input.payoutLedgerKey,
+        winnerPlayerId: winner.id,
+      },
+    });
+    return { paid: !result.duplicate };
   });
-
-  await prisma.match.update({
-    where: { id: input.matchId },
-    data: {
-      status: MatchStatus.FINISHED,
-      finalizedAt: new Date(),
-      payoutLedgerKey: input.payoutLedgerKey,
-      winnerPlayerId: (
-        await prisma.matchPlayer.findFirst({
-          where: { matchId: input.matchId, userId: input.winnerUserId },
-        })
-      )?.id,
-    },
-  });
-
-  return { paid: !result.duplicate };
 }
 
 export type RefundAbortedMatchInput = {
@@ -224,40 +214,47 @@ export type RefundAbortedMatchInput = {
 };
 
 export async function refundAbortedMatch(
-  prisma: PrismaClient,
+  db: DbClient,
   input: RefundAbortedMatchInput,
 ): Promise<void> {
-  const match = await prisma.match.findUnique({ where: { id: input.matchId } });
-  if (!match) throw new MatchSettlementError('Match not found', 'NOT_FOUND');
-  if (match.abortRefundKey) return;
-
-  await prisma.$transaction(async (tx) => {
-    for (const player of input.players) {
-      if (!player.userId) continue;
-      const refundKey = `${input.abortRefundKey}:${player.userId}`;
-      const existingRefund = await tx.walletLedgerEntry.findUnique({
-        where: { idempotencyKey: refundKey },
+  await atomic(db, async (tx) => {
+    const match = await lockMatch(tx, input.matchId);
+    if (match.abortRefundKey) return;
+    if (match.status === MatchStatus.FINISHED) {
+      throw new MatchSettlementError('Cannot refund a finished match', 'INVALID_STATE');
+    }
+    for (const player of [...input.players].sort((a, b) => a.userId.localeCompare(b.userId))) {
+      const entry = await tx.walletLedgerEntry.findUnique({
+        where: { idempotencyKey: player.entryFeeKey },
       });
-      if (existingRefund) continue;
-
+      // Refund only an actual debit belonging to this player and match.
+      if (
+        !entry ||
+        entry.type !== WalletLedgerType.MATCH_ENTRY ||
+        entry.matchId !== input.matchId ||
+        entry.amount >= 0n
+      )
+        continue;
+      const wallet = await tx.wallet.findUnique({ where: { userId: player.userId } });
+      if (!wallet || wallet.id !== entry.walletId)
+        throw new MatchSettlementError('Invalid refund owner', 'INVALID_STATE');
       await mutateWallet(tx, {
         userId: player.userId,
-        amount: input.entryFee,
+        amount: -entry.amount,
         type: WalletLedgerType.MATCH_REFUND,
-        idempotencyKey: refundKey,
+        idempotencyKey: `${input.abortRefundKey}:${player.userId}`,
         matchId: input.matchId,
         metadata: { originalEntryKey: player.entryFeeKey },
       });
     }
-
     await tx.match.update({
       where: { id: input.matchId },
       data: {
         status: MatchStatus.ABORTED,
         abortRefundKey: input.abortRefundKey,
+        finalizedAt: new Date(),
       },
     });
-
     await tx.matchPlayer.updateMany({
       where: { matchId: input.matchId },
       data: { result: MatchPlayerResult.ABORTED },

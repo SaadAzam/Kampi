@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GameRegistry, CommandGuard, SettlementCoordinator } from './server/index.js';
 import { GameManifestSchema, createRandomProvider, queueKeyString } from './common/index.js';
 import { FakeClock, FakeClient } from './testing/index.js';
@@ -142,5 +142,31 @@ describe('FakeClock and RNG', () => {
     expect(clock.now()).toBe(1500);
     const rng = createRandomProvider(() => 0);
     expect(rng.pick(['L', 'R'])).toBe('L');
+  });
+});
+
+describe('completed match connections', () => {
+  it('does not reconnect after the server closes a completed match', async () => {
+    const fake = new FakeClient();
+    const reconnect = vi.spyOn(fake, 'reconnect');
+    const session = new GameSessionClient({
+      realtimeUrl: 'ws://localhost',
+      authToken: 'test',
+      gameId: 'penalty-duel',
+      clientFactory: () => fake,
+    });
+    await session.joinQueue();
+    fake.rooms[0]!.emit('match_found', {
+      matchId: 'm',
+      roomId: 'r',
+      seat: 'A',
+      gameId: 'penalty-duel',
+    });
+    await vi.waitFor(() => expect(session.getConnectionStatus()).toBe('in_match'));
+    fake.rooms[1]!.emit('match_completed', { winnerSeat: 'A' });
+    fake.rooms[1]!.disconnect(4000);
+    expect(reconnect).not.toHaveBeenCalled();
+    expect(session.getConnectionStatus()).toBe('disconnected');
+    session.destroy();
   });
 });

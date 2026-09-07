@@ -4,8 +4,12 @@ export type RuntimeConfig = {
   authToken: string;
 };
 
-const storedToken =
-  typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('kampi.authToken') : null;
+let storedToken: string | null = null;
+try {
+  if (window.parent === window) storedToken = sessionStorage.getItem('kampi.authToken');
+} catch {
+  /* Storage can be unavailable in embeds. */
+}
 
 export const runtimeConfig: RuntimeConfig = {
   realtimeUrl: import.meta.env.VITE_REALTIME_PUBLIC_URL ?? 'ws://localhost:2567',
@@ -16,5 +20,9 @@ export const runtimeConfig: RuntimeConfig = {
 
 export function setAuthToken(token: string): void {
   runtimeConfig.authToken = token;
-  sessionStorage.setItem('kampi.authToken', token);
+  try {
+    if (window.parent === window) sessionStorage.setItem('kampi.authToken', token);
+  } catch {
+    /* In-memory session remains usable. */
+  }
 }

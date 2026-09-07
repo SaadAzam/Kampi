@@ -10,10 +10,19 @@ const baseEnvSchema = z.object({
   API_PUBLIC_URL: z.string().url(),
   REALTIME_PUBLIC_URL: z.string(),
   GAME_RPS_PUBLIC_URL: z.string().url(),
+  GAME_PENALTY_PUBLIC_URL: z.string().url().optional(),
 });
 
+function portSchema(fallback: number) {
+  return z.preprocess((value) => {
+    if (value !== undefined && value !== '') return value;
+    if (process.env.PORT) return process.env.PORT;
+    return fallback;
+  }, z.coerce.number().int().positive());
+}
+
 export const ApiEnvSchema = baseEnvSchema.extend({
-  API_PORT: z.coerce.number().int().positive().default(4000),
+  API_PORT: portSchema(4000),
   ADMIN_ORIGIN: z.string().url().optional(),
   DEV_GUEST_AUTH_ENABLED: z
     .enum(['true', 'false'])
@@ -27,7 +36,7 @@ export const ApiEnvSchema = baseEnvSchema.extend({
 });
 
 export const RealtimeEnvSchema = baseEnvSchema.extend({
-  REALTIME_PORT: z.coerce.number().int().positive().default(2567),
+  REALTIME_PORT: portSchema(2567),
   STARTING_CHIPS: z.coerce.bigint().default(10000n),
   RPS_ENTRY_FEE: z.coerce.bigint().default(500n),
   RPS_WINNER_PAYOUT: z.coerce.bigint().default(950n),

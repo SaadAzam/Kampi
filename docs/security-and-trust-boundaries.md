@@ -22,6 +22,7 @@ Game clients render state received from the server only.
 ## Authentication
 
 - Sessions stored as SHA-256 hashes — raw tokens are never logged
+- Email/password accounts use scrypt password hashes; guest sessions remain available only when `DEV_GUEST_AUTH_ENABLED` is on
 - Development guest auth (`DEV_GUEST_AUTH_ENABLED`) disabled in production by default
 - API rate limiting foundation via `@nestjs/throttler`
 

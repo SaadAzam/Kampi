@@ -64,8 +64,8 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, document);
   }
 
-  await app.listen(config.port);
-  console.info(`API listening on ${config.publicUrl}`);
+  await app.listen(config.port, '0.0.0.0');
+  console.info(`API listening on ${config.publicUrl} (port ${config.port})`);
 }
 
 bootstrap().catch((error) => {
