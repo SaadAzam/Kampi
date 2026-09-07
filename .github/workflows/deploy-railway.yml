@@ -1,0 +1,41 @@
+name: Deploy Railway
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: railway-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Deploy services
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "Missing repo secret RAILWAY_TOKEN. Add a Railway API or project token at Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          project=74c72010-d4cf-412f-a1df-07a2dc05ec4d
+          sha="${GITHUB_SHA:0:7}"
+          for service in api realtime web game-rps game-penalty; do
+            echo "::group::railway up ${service}"
+            railway up --service "$service" --project "$project" --environment production --detach --yes --message "github ${sha}"
+            echo "::endgroup::"
+          done

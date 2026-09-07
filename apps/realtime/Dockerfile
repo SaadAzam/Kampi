@@ -4,6 +4,7 @@ RUN corepack enable && apk add --no-cache openssl libc6-compat
 
 FROM base AS build
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY patches ./patches
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
