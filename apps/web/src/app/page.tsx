@@ -310,7 +310,8 @@ export default function HomePage() {
     setEmbedMessage('');
     const url = new URL(game.clientUrl);
     if (!['http:', 'https:'].includes(url.protocol)) return;
-    setActiveGame(game);
+    url.searchParams.set('v', Date.now().toString());
+    setActiveGame({ ...game, clientUrl: url.toString() });
   }
 
   function closeGame() {
@@ -367,6 +368,7 @@ export default function HomePage() {
             </div>
             <iframe
               id="game-frame"
+              key={activeGame.clientUrl}
               className="game-frame"
               src={activeGame.clientUrl}
               title={activeGame.name}
