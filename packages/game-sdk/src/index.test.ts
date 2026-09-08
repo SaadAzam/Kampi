@@ -119,6 +119,35 @@ describe('host origin checks', () => {
   });
 });
 
+describe('resolveParentOrigin', () => {
+  it('uses the iframe parent origin instead of localhost', async () => {
+    const { resolveParentOrigin, embedAllowedOrigins } = await import('./embed/bridge.js');
+    const parent = 'https://web-production-fc16.up.railway.app';
+    expect(
+      resolveParentOrigin('http://localhost:3000', {
+        ancestorOrigins: { length: 1, item: () => parent },
+        referrer: '',
+      }),
+    ).toBe(parent);
+    expect(
+      resolveParentOrigin('http://localhost:3000', {
+        ancestorOrigins: { length: 0, item: () => null },
+        referrer: `${parent}/play`,
+      }),
+    ).toBe(parent);
+    expect(
+      resolveParentOrigin('http://localhost:3000', {
+        ancestorOrigins: { length: 0, item: () => null },
+        referrer: '',
+      }),
+    ).toBe('http://localhost:3000');
+    expect(embedAllowedOrigins(parent, 'http://localhost:3000')).toEqual([
+      parent,
+      'http://localhost:3000',
+    ]);
+  });
+});
+
 describe('GameSessionClient', () => {
   it('connects with injected fake client and cleans up', async () => {
     const fake = new FakeClient();

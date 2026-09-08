@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import { GameSessionClient } from '@kampi/game-sdk/client';
-import { GameEmbedClient } from '@kampi/game-sdk/embed';
+import {
+  GameEmbedClient,
+  embedAllowedOrigins,
+  resolveParentOrigin,
+} from '@kampi/game-sdk/embed';
 import { PENALTY_GAME_ID } from '@kampi/game-penalty';
 import { runtimeConfig, setAuthToken } from '../config.js';
 
@@ -192,10 +196,11 @@ export class GameScene extends Phaser.Scene {
 
   private setupEmbed() {
     if (window.parent === window) return;
-    const origin = import.meta.env.VITE_WEB_ORIGIN ?? 'http://localhost:3000';
+    const configured = import.meta.env.VITE_WEB_ORIGIN;
+    const origin = resolveParentOrigin(configured);
     this.embed = new GameEmbedClient({
       parentOrigin: origin,
-      allowedOrigins: [origin],
+      allowedOrigins: embedAllowedOrigins(origin, configured),
       onMessage: (message) => {
         if (message.type === 'session') {
           if (runtimeConfig.authToken !== message.authToken) {

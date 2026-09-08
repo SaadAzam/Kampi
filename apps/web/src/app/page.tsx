@@ -372,7 +372,7 @@ export default function HomePage() {
               title={activeGame.name}
               allow="fullscreen"
               onLoad={connectFrame}
-              referrerPolicy="no-referrer"
+              referrerPolicy="origin"
               sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
             />
           </div>

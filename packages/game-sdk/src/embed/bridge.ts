@@ -7,6 +7,50 @@ import {
   parseHostMessage,
 } from '@kampi/contracts';
 
+export type ParentOriginSource = {
+  ancestorOrigins?: { length: number; item(index: number): string | null };
+  referrer?: string;
+};
+
+const LOCAL_WEB_ORIGIN = 'http://localhost:3000';
+
+/**
+ * Target origin for iframe → host postMessage.
+ * Prefers the real parent (Safari `ancestorOrigins`, then referrer) so production
+ * embeds do not post to a baked-in localhost URL.
+ */
+export function resolveParentOrigin(
+  configured?: string,
+  source?: ParentOriginSource,
+): string {
+  const fallback = configured && configured.length > 0 ? configured : LOCAL_WEB_ORIGIN;
+  const live: ParentOriginSource | undefined =
+    source ??
+    (typeof window !== 'undefined'
+      ? {
+          ancestorOrigins: window.location.ancestorOrigins,
+          referrer: document.referrer,
+        }
+      : undefined);
+  const ancestor = live?.ancestorOrigins?.item(0);
+  if (ancestor) return ancestor;
+  const referrer = live?.referrer;
+  if (referrer) {
+    try {
+      return new URL(referrer).origin;
+    } catch {
+      /* ignore invalid referrer */
+    }
+  }
+  return fallback;
+}
+
+export function embedAllowedOrigins(parentOrigin: string, configured?: string): string[] {
+  const origins = new Set<string>([parentOrigin]);
+  if (configured) origins.add(configured);
+  return [...origins];
+}
+
 export type GameEmbedOptions = {
   /** Origin of the host page embedding this game (e.g. web shell). */
   parentOrigin: string;

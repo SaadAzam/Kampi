@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
 import type { RpsMatchSnapshot, RpsChoice } from '@kampi/contracts';
 import { GameSessionClient } from '@kampi/game-sdk/client';
-import { GameEmbedClient } from '@kampi/game-sdk/embed';
+import {
+  GameEmbedClient,
+  embedAllowedOrigins,
+  resolveParentOrigin,
+} from '@kampi/game-sdk/embed';
 import { RPS_GAME_ID } from '@kampi/game-rps-core';
 import { runtimeConfig } from '../config.js';
 
@@ -116,10 +120,11 @@ export class GameScene extends Phaser.Scene {
 
   private setupEmbed() {
     if (window.parent === window) return;
-    const parentOrigin = import.meta.env.VITE_WEB_ORIGIN ?? 'http://localhost:3000';
+    const configured = import.meta.env.VITE_WEB_ORIGIN;
+    const parentOrigin = resolveParentOrigin(configured);
     this.embed = new GameEmbedClient({
       parentOrigin,
-      allowedOrigins: [parentOrigin],
+      allowedOrigins: embedAllowedOrigins(parentOrigin, configured),
       onMessage: (message) => {
         if (message.type === 'session') {
           runtimeConfig.authToken = message.authToken;

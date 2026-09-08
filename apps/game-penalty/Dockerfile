@@ -9,7 +9,9 @@ COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
 ARG VITE_REALTIME_PUBLIC_URL
+ARG VITE_WEB_ORIGIN
 ENV VITE_REALTIME_PUBLIC_URL=$VITE_REALTIME_PUBLIC_URL
+ENV VITE_WEB_ORIGIN=$VITE_WEB_ORIGIN
 RUN pnpm install --frozen-lockfile --filter @kampi/game-penalty-app...
 RUN pnpm --filter @kampi/game-penalty-app... build
 

@@ -9,5 +9,7 @@ export type { EmbedGameToHostMessage, EmbedHostToGameMessage } from '@kampi/cont
 export {
   GameEmbedClient,
   HostEmbedController,
+  embedAllowedOrigins,
+  resolveParentOrigin,
 } from '../embed/bridge.js';
-export type { GameEmbedOptions, HostEmbedOptions } from '../embed/bridge.js';
+export type { GameEmbedOptions, HostEmbedOptions, ParentOriginSource } from '../embed/bridge.js';

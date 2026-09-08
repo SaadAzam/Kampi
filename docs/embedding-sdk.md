@@ -69,6 +69,7 @@ Capacitor is **not** installed in this phase.
 
 - Validate every message with Zod schemas from `@kampi/contracts`
 - Restrict `allowedOrigins` — never use `*` in production
+- Game iframes resolve the host origin at runtime (`location.ancestorOrigins` / referrer) so they do not postMessage to a baked-in localhost URL
 - Auth tokens travel host → game only; games do not persist tokens in localStorage for production
 
 See also `docs/security-and-trust-boundaries.md`.

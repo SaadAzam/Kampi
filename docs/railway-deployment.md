@@ -90,6 +90,7 @@ Game client build args:
 
 ```text
 VITE_REALTIME_PUBLIC_URL=wss://${{realtime.RAILWAY_PUBLIC_DOMAIN}}
+VITE_WEB_ORIGIN=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 In each service's settings, set **Dockerfile path** to:
