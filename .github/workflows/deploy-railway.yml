@@ -34,7 +34,7 @@ jobs:
           project=74c72010-d4cf-412f-a1df-07a2dc05ec4d
           environment=836d08e4-332b-47f5-9d0f-8f4b647e758a
           sha="${GITHUB_SHA:0:7}"
-          for service in api realtime web game-rps game-penalty; do
+          for service in api realtime web admin game-rps game-penalty; do
             echo "::group::railway up ${service}"
             railway up --service "$service" --project "$project" --environment "$environment" --detach --message "github ${sha}"
             echo "::endgroup::"

@@ -1,8 +1,4 @@
-export default function GamesPage() {
-  return (
-    <section className="card">
-      <h2>Games</h2>
-      <p>Placeholder — manage game catalog, versions, and economy configs.</p>
-    </section>
-  );
+import AdminDashboard from '../../components/AdminDashboard';
+export default function Page() {
+  return <AdminDashboard section="games" />;
 }

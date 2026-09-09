@@ -55,3 +55,274 @@ main {
     grid-template-columns: 1fr;
   }
 }
+* {
+  box-sizing: border-box;
+}
+h2 {
+  font-size: 30px;
+  margin: 8px 0;
+}
+h3 {
+  margin-top: 0;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #477fd1;
+  border-radius: 9px;
+  color: #fff;
+  background: #265ba8;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.secondary {
+  background: #1b293e;
+  border-color: #34445c;
+}
+input {
+  min-height: 44px;
+  width: 100%;
+  background: #080f1d;
+  color: #e2e8f0;
+  border: 1px solid #34445c;
+  border-radius: 8px;
+  padding: 10px;
+}
+label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.login {
+  max-width: 480px;
+  margin: 40px auto;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #8eb9fb;
+}
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 25px;
+}
+.tools,
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.metric {
+  display: grid;
+  gap: 12px;
+}
+.metric span {
+  color: #9baec7;
+  font-size: 13px;
+}
+.metric strong {
+  font-size: 28px;
+}
+.two-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  border-bottom: 1px solid #253145;
+  padding-bottom: 10px;
+}
+.stat small,
+td small {
+  display: block;
+  color: #97a9c0;
+  font-size: 12px;
+  margin-top: 5px;
+}
+.card {
+  margin-bottom: 16px;
+}
+main {
+  min-width: 0;
+}
+.table-wrap {
+  overflow: auto;
+  padding: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+th {
+  color: #9baec7;
+  background: #142036;
+  font-weight: 500;
+  white-space: nowrap;
+}
+th,
+td {
+  padding: 16px;
+  border-bottom: 1px solid #253145;
+  vertical-align: top;
+}
+code {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+.badge {
+  display: inline-block;
+  padding: 5px 8px;
+  background: #233955;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.search {
+  display: flex;
+  gap: 8px;
+  max-width: 650px;
+  margin-bottom: 18px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pagination span {
+  margin-right: auto;
+  color: #94a3b8;
+}
+.error {
+  background: #3d1d2b;
+  color: #ffbbc6;
+  padding: 12px;
+  border-radius: 8px;
+}
+.success {
+  background: #113c31;
+  color: #9fe2c2;
+  padding: 12px;
+  border-radius: 8px;
+}
+.positive {
+  color: #9fe2c2;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 350px;
+  overflow: auto;
+}
+details {
+  margin: 12px 0;
+}
+summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.detail {
+  margin-top: 24px;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #000b;
+  z-index: 10;
+}
+.modal {
+  width: min(520px, 100%);
+  max-height: 90dvh;
+  overflow: auto;
+}
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+}
+.sidebar h1 {
+  font-size: 22px;
+}
+.sidebar a {
+  min-height: 42px;
+}
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #a2cbff;
+  outline-offset: 3px;
+}
+@media (max-width: 720px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    padding: 16px;
+  }
+  .sidebar nav {
+    display: flex;
+    overflow: auto;
+    gap: 5px;
+  }
+  .sidebar nav a {
+    white-space: nowrap;
+  }
+  .sidebar .muted {
+    display: none;
+  }
+  main {
+    padding: 16px;
+  }
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .two-columns {
+    grid-template-columns: 1fr;
+  }
+  .login {
+    margin: 15px auto;
+  }
+}
+
+.sidebar {
+  min-width: 0;
+}
+.sidebar nav {
+  max-width: 100%;
+}
+.search input {
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

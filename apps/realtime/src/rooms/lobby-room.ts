@@ -132,6 +132,12 @@ export class LobbyRoom extends Room {
       return;
     }
 
+    const available = await prisma.game.findUnique({
+      where: { slug: gameId },
+      select: { status: true },
+    });
+    if (available?.status !== 'ACTIVE') throw new Error('This game is currently unavailable');
+
     const queueKey = QueueKeySchema.parse({
       gameId,
       gameVersion: options.gameVersion ?? '1.0.0',
@@ -406,6 +412,12 @@ export class LobbyRoom extends Room {
     const registered = gameRegistry.get(gameId);
 
     const game = await prisma.game.findUniqueOrThrow({ where: { slug: gameId } });
+    if (game.status !== 'ACTIVE') throw new Error('This game is currently unavailable');
+    const humans = isBot ? [player1.userId] : [...new Set([player1.userId, player2.userId])];
+    const activeHumans = await prisma.user.count({
+      where: { id: { in: humans }, status: 'ACTIVE' },
+    });
+    if (activeHumans !== humans.length) throw new Error('A player is no longer eligible to play');
     const version = await prisma.gameVersion.findFirst({
       where: { gameId: game.id, isActive: true },
     });

@@ -4,10 +4,12 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Kampi Admin',
-  description: 'Development administration shell',
+  description: 'Kampi operations dashboard',
 };
 
 const links = [
+  { href: '/', label: 'Overview' },
+  { href: '/audit', label: 'Audit trail' },
   { href: '/players', label: 'Players' },
   { href: '/matches', label: 'Matches' },
   { href: '/wallet', label: 'Wallet Ledger' },
@@ -22,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <aside className="sidebar">
             <h1>Kampi Admin</h1>
-            <p className="muted">Development shell — not production-ready</p>
+            <p className="muted">Live operations · Restricted access</p>
             <nav>
               {links.map((link) => (
                 <Link key={link.href} href={link.href}>

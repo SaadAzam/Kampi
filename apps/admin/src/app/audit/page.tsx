@@ -1,4 +1,4 @@
 import AdminDashboard from '../../components/AdminDashboard';
 export default function Page() {
-  return <AdminDashboard section="wallet" />;
+  return <AdminDashboard section="audit" />;
 }
