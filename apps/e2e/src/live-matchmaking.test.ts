@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Client } from 'colyseus.js';
+import { Client, type Room } from 'colyseus.js';
 
 const API_URL = process.env.API_PUBLIC_URL ?? 'http://localhost:4000';
 const TEST_REGION = `regression-${crypto.randomUUID()}`;
@@ -51,38 +51,59 @@ describe('live two-client Penalty matchmaking', () => {
       region: TEST_REGION,
     });
 
-    const found = await Promise.all([
-      new Promise<{ matchId: string; seat: string; botFill: boolean }>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('timeout waiting for match A')), 20_000);
-        void clientA.joinOrCreate('lobby', lobbyOpts(a.token)).then((room) => {
-          room.onMessage('match_found', (payload) => {
-            clearTimeout(timer);
-            resolve(payload as never);
-          });
-          room.onMessage('error', (err) => {
-            clearTimeout(timer);
-            reject(err);
-          });
-        });
-      }),
-      new Promise<{ matchId: string; seat: string; botFill: boolean }>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('timeout waiting for match B')), 20_000);
-        void clientB.joinOrCreate('lobby', lobbyOpts(b.token)).then((room) => {
-          room.onMessage('match_found', (payload) => {
-            clearTimeout(timer);
-            resolve(payload as never);
-          });
-          room.onMessage('error', (err) => {
-            clearTimeout(timer);
-            reject(err);
-          });
-        });
-      }),
-    ]);
+    const rooms: Room[] = [];
+    try {
+      const found = await Promise.all([
+        new Promise<{ matchId: string; seat: string; botFill: boolean }>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('timeout waiting for match A')), 20_000);
+          void clientA
+            .joinOrCreate('lobby', lobbyOpts(a.token))
+            .then((room) => {
+              rooms.push(room);
+              room.onMessage('queue_joined', () => undefined);
+              room.onMessage('match_found', (payload) => {
+                clearTimeout(timer);
+                resolve(payload as never);
+              });
+              room.onMessage('error', (err) => {
+                clearTimeout(timer);
+                reject(err);
+              });
+            })
+            .catch((error) => {
+              clearTimeout(timer);
+              reject(error);
+            });
+        }),
+        new Promise<{ matchId: string; seat: string; botFill: boolean }>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('timeout waiting for match B')), 20_000);
+          void clientB
+            .joinOrCreate('lobby', lobbyOpts(b.token))
+            .then((room) => {
+              rooms.push(room);
+              room.onMessage('queue_joined', () => undefined);
+              room.onMessage('match_found', (payload) => {
+                clearTimeout(timer);
+                resolve(payload as never);
+              });
+              room.onMessage('error', (err) => {
+                clearTimeout(timer);
+                reject(err);
+              });
+            })
+            .catch((error) => {
+              clearTimeout(timer);
+              reject(error);
+            });
+        }),
+      ]);
 
-    expect(found[0].matchId).toBe(found[1].matchId);
-    expect(found[0].seat).not.toBe(found[1].seat);
-    expect(found[0].botFill).toBe(false);
-    expect(found[1].botFill).toBe(false);
+      expect(found[0].matchId).toBe(found[1].matchId);
+      expect(found[0].seat).not.toBe(found[1].seat);
+      expect(found[0].botFill).toBe(false);
+      expect(found[1].botFill).toBe(false);
+    } finally {
+      await Promise.all(rooms.map((room) => room.leave()));
+    }
   }, 30_000);
 });

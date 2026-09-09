@@ -550,7 +550,7 @@ button:disabled {
   transform: translateX(-50%);
   width: min(100%, 1060px);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 8px 16px max(8px, env(safe-area-inset-bottom));
   background: #111d32f5;
   border: 1px solid #293b56;
@@ -678,4 +678,38 @@ button:disabled {
   .header {
     padding-bottom: 8px;
   }
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+.history-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid #283954;
+}
+.history-list li > div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.history-list time,
+.history-list span {
+  font-size: 0.82rem;
+  color: #9fb1ca;
+}
+.history-result {
+  text-align: right;
+  flex-shrink: 0;
+}
+.history-result [data-result='WIN'] {
+  color: #75e6ad;
+}
+.history-result [data-result='LOSS'] {
+  color: #ffacb9;
 }

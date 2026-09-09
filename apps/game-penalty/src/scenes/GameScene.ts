@@ -1,10 +1,6 @@
 import Phaser from 'phaser';
 import { GameSessionClient } from '@kampi/game-sdk/client';
-import {
-  GameEmbedClient,
-  embedAllowedOrigins,
-  resolveParentOrigin,
-} from '@kampi/game-sdk/embed';
+import { GameEmbedClient, embedAllowedOrigins, resolveParentOrigin } from '@kampi/game-sdk/embed';
 import { PENALTY_GAME_ID } from '@kampi/game-penalty';
 import { runtimeConfig, setAuthToken } from '../config.js';
 
@@ -68,6 +64,7 @@ export class GameScene extends Phaser.Scene {
   private finished = false;
   private serverNow = 0;
   private receivedAt = 0;
+  private resumeKey = '';
   private eventsAbort = new AbortController();
 
   constructor() {
@@ -186,11 +183,13 @@ export class GameScene extends Phaser.Scene {
     const available = Boolean(runtimeConfig.authToken) && (!this.busy || this.finished);
     for (const id of ['find', 'private', 'join'])
       element<HTMLButtonElement>(id).disabled = !available;
-    element('cancel').hidden = !this.busy || Boolean(this.snapshot && !this.finished);
+    element('cancel').hidden = !this.busy || this.finished || Boolean(this.snapshot);
     element('find').textContent = this.finished
       ? 'Play again'
       : this.busy
-        ? 'Finding your opponent…'
+        ? this.snapshot
+          ? 'Match in progress'
+          : 'Finding your opponent…'
         : 'Find match';
   }
 
@@ -210,6 +209,7 @@ export class GameScene extends Phaser.Scene {
           setAuthToken(message.authToken);
           this.status('Ready. Find an opponent or challenge a friend.');
           this.controls();
+          void this.restoreMatch();
         }
       },
     });
@@ -229,6 +229,7 @@ export class GameScene extends Phaser.Scene {
         setAuthToken(body.token);
       }
       this.status('Ready. Find an opponent or challenge a friend.');
+      await this.restoreMatch();
     } catch (error) {
       this.status(
         error instanceof Error ? error.message : 'Could not connect. Please reload to retry.',
@@ -250,6 +251,7 @@ export class GameScene extends Phaser.Scene {
         this.status('Connection lost. Reconnecting to your match…');
         this.actionControls(false);
       }
+      if (status === 'in_match') this.rememberMatch();
       if (status === 'queued')
         this.status('Looking for an opponent. A bot joins if nobody is available.');
     });
@@ -273,6 +275,9 @@ export class GameScene extends Phaser.Scene {
       this.serverNow = this.snapshot.serverNow;
       this.receivedAt = performance.now();
       this.mySeat = this.snapshot.yourSeat ?? this.mySeat;
+      // The server snapshot decides whether a possibly lost submission was accepted.
+      this.submittedTurn = undefined;
+      this.rememberMatch();
       this.renderSnapshot(this.snapshot);
     });
     session.on('match_completed', (payload) => {
@@ -294,6 +299,11 @@ export class GameScene extends Phaser.Scene {
     });
     session.on('error', (payload) => {
       this.status(payload.message);
+      if (payload.code === 'RECONNECT_EXPIRED') {
+        this.forgetMatch();
+        this.finished = true;
+        this.actionControls(false);
+      }
       if (!this.snapshot || this.finished) {
         session.destroy();
         this.session = undefined;
@@ -302,6 +312,54 @@ export class GameScene extends Phaser.Scene {
       this.controls();
     });
     return session;
+  }
+
+  private rememberMatch() {
+    const token = this.session?.getReconnectionToken();
+    if (!token || !this.resumeKey) return;
+    try {
+      sessionStorage.setItem(this.resumeKey, JSON.stringify({ token, savedAt: Date.now() }));
+    } catch {
+      /* In-memory reconnection still works when browser storage is blocked. */
+    }
+  }
+
+  private forgetMatch() {
+    try {
+      if (this.resumeKey) sessionStorage.removeItem(this.resumeKey);
+    } catch {
+      /* optional storage */
+    }
+  }
+
+  private async restoreMatch() {
+    if (this.session || !runtimeConfig.authToken) return;
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(runtimeConfig.authToken),
+    );
+    this.resumeKey =
+      'kampi.penalty.resume.' +
+      Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    let record: { token?: string; savedAt?: number } | null = null;
+    try {
+      record = JSON.parse(sessionStorage.getItem(this.resumeKey) ?? 'null');
+    } catch {
+      this.forgetMatch();
+    }
+    if (
+      !record ||
+      typeof record.token !== 'string' ||
+      !record.savedAt ||
+      Date.now() - record.savedAt > 120000
+    ) {
+      this.forgetMatch();
+      return;
+    }
+    if (this.session) return;
+    this.busy = true;
+    this.controls();
+    await this.ensureSession().resume(record.token);
   }
 
   private async start(mode: 'public' | 'private' | 'join') {
@@ -344,6 +402,7 @@ export class GameScene extends Phaser.Scene {
     const turn = this.snapshot?.activeTurn;
     if (
       !this.session ||
+      this.session.getConnectionStatus() !== 'in_match' ||
       !turn ||
       !this.mySeat ||
       this.snapshot?.phase !== 'AWAITING_ACTIONS' ||
@@ -389,7 +448,11 @@ export class GameScene extends Phaser.Scene {
           ? 'Choice locked. Waiting for the reveal…'
           : `${snapshot.inSuddenDeath ? `Sudden death · pair ${snapshot.suddenDeathPair}` : `Kick ${turn.sequence} of 6`} · ${kicker ? 'Beat the keeper.' : 'Read the shot.'}`,
       );
-      this.actionControls(!locked && this.now() < turn.deadlineAt);
+      this.actionControls(
+        this.session?.getConnectionStatus() === 'in_match' &&
+          !locked &&
+          this.now() < turn.deadlineAt,
+      );
     } else mirror('role', this.finished ? 'Match complete' : 'Get ready');
     const latest = snapshot.revealedHistory.at(-1);
     if (latest && latest.turnId !== this.lastRevealTurnId) {
@@ -404,6 +467,7 @@ export class GameScene extends Phaser.Scene {
       );
     }
     if (this.finished) {
+      this.forgetMatch();
       this.tweens.killAll();
       mirror(
         'result',

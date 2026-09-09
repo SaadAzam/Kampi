@@ -17,6 +17,6 @@
     "colyseus.js": "^0.16.16",
     "eslint": "^9.28.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.3"
+    "vitest": "^4.1.11"
   }
 }

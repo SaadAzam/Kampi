@@ -49,6 +49,18 @@ type LeaderboardBoard = {
   entries: Array<{ rank: number; userId: string; displayName: string; score: number }>;
 };
 
+type MatchHistory = {
+  matchId: string;
+  gameName: string;
+  opponent: string;
+  score: number;
+  opponentScore: number;
+  status: string;
+  result: string | null;
+  createdAt: string;
+  botFill: boolean;
+};
+
 type AuthMode = 'login' | 'register' | 'claim';
 
 function readStoredToken(): string {
@@ -95,11 +107,14 @@ function emptyStats(): PlayerStats {
 }
 
 export default function HomePage() {
-  const [view, setView] = useState<'home' | 'rankings' | 'account'>('home');
+  const [view, setView] = useState<'home' | 'rankings' | 'history' | 'account'>('home');
   const bootstrapped = useRef(false);
   const [player, setPlayer] = useState<Player | null>(null);
   const [token, setToken] = useState('');
   const [games, setGames] = useState<GameCard[]>([]);
+  const [history, setHistory] = useState<MatchHistory[]>([]);
+  const [historyError, setHistoryError] = useState('');
+  const restoredGame = useRef(false);
   const [boards, setBoards] = useState<LeaderboardBoard[]>([]);
   const [connection, setConnection] = useState<'checking' | 'online' | 'offline'>('checking');
   const [guestAvailable, setGuestAvailable] = useState(false);
@@ -128,6 +143,54 @@ export default function HomePage() {
     [activeGame],
   );
 
+  useEffect(() => {
+    if (!token || !games.length || restoredGame.current) return;
+    restoredGame.current = true;
+    try {
+      const slug = sessionStorage.getItem('kampi.activeGame');
+      const game = games.find((item) => item.slug === slug);
+      if (game) openGame(game);
+    } catch {
+      /* optional storage */
+    }
+  }, [token, games]);
+
+  useEffect(() => {
+    if (!token) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refreshPlayer(token).catch(() => undefined);
+      void loadHistory(token);
+      void loadLeaderboard().catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [token]);
+
+  async function loadHistory(authToken: string) {
+    try {
+      const res = await fetch(`${API_URL}/matches/history?limit=30`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('History is temporarily unavailable.');
+      const body = (await res.json()) as { matches: MatchHistory[] };
+      if (tokenRef.current !== authToken) return;
+      setHistory(body.matches);
+      setHistoryError('');
+    } catch {
+      if (tokenRef.current === authToken)
+        setHistoryError('Could not refresh match history. Retrying automatically.');
+    }
+  }
+
   function connectFrame() {
     if (!activeGame || !tokenRef.current) return;
     const iframe = document.getElementById('game-frame') as HTMLIFrameElement | null;
@@ -144,6 +207,7 @@ export default function HomePage() {
         if (message.type === 'match_started') setEmbedMessage('Match in progress');
         if (message.type === 'match_completed') setEmbedMessage('Match complete');
         if (message.type === 'balance_changed' || message.type === 'match_completed') {
+          void loadHistory(tokenRef.current);
           void refreshPlayer(tokenRef.current).catch(() => undefined);
           void loadLeaderboard().catch(() => undefined);
         }
@@ -168,7 +232,8 @@ export default function HomePage() {
       headers: { Authorization: `Bearer ${authToken}` },
     });
     if (!playerRes.ok) return false;
-    setPlayer((await playerRes.json()) as Player);
+    const latest = (await playerRes.json()) as Player;
+    if (tokenRef.current === authToken) setPlayer(latest);
     return true;
   }
 
@@ -302,11 +367,18 @@ export default function HomePage() {
     }
     clearStoredToken();
     setToken('');
+    tokenRef.current = '';
+    setHistory([]);
     setPlayer(null);
     setAuthMode('login');
   }
 
   function openGame(game: GameCard) {
+    try {
+      sessionStorage.setItem('kampi.activeGame', game.slug);
+    } catch {
+      /* optional storage */
+    }
     setEmbedMessage('');
     const url = new URL(game.clientUrl);
     if (!['http:', 'https:'].includes(url.protocol)) return;
@@ -315,6 +387,12 @@ export default function HomePage() {
   }
 
   function closeGame() {
+    try {
+      sessionStorage.removeItem('kampi.activeGame');
+    } catch {
+      /* optional storage */
+    }
+    if (token) void loadHistory(token);
     embedRef.current?.destroy();
     embedRef.current = null;
     setActiveGame(null);
@@ -551,6 +629,66 @@ export default function HomePage() {
               </div>
             )}
           </section>
+          <section
+            className="card match-history"
+            hidden={view !== 'history'}
+            aria-label="Previous matches"
+          >
+            <div className="section-heading">
+              <h2>Previous matches</h2>
+              <button
+                className="ghost-button"
+                disabled={!token}
+                onClick={() => void loadHistory(token)}
+              >
+                Refresh
+              </button>
+            </div>
+            <p className="muted">
+              Your latest duels, scores and results. Updated after every match.
+            </p>
+            {historyError ? <p role="status">{historyError}</p> : null}
+            {!player ? (
+              <p>Sign in to see your matches.</p>
+            ) : history.length === 0 ? (
+              <p>No matches yet. Your first duel will appear here.</p>
+            ) : (
+              <ol className="history-list">
+                {history.map((match) => (
+                  <li key={match.matchId}>
+                    <div>
+                      <strong>{match.gameName}</strong>
+                      <span>
+                        vs {match.opponent}
+                        {match.botFill ? ' · BOT' : ''}
+                      </span>
+                      <time dateTime={match.createdAt}>
+                        {new Date(match.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </time>
+                    </div>
+                    <div className="history-result">
+                      <strong>
+                        {match.score} – {match.opponentScore}
+                      </strong>
+                      <span data-result={match.result}>
+                        {match.result ??
+                          (match.status === 'FINISHED'
+                            ? 'Updating result…'
+                            : match.status === 'ABORTED'
+                              ? 'Cancelled'
+                              : 'In progress')}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
           <p className="lobby-note">
             Made for a quick break. Played for the bragging rights.
             <br />
@@ -568,6 +706,15 @@ export default function HomePage() {
               onClick={() => setView('rankings')}
             >
               <span aria-hidden="true">♜</span>Rankings
+            </button>
+            <button
+              aria-current={view === 'history' ? 'page' : undefined}
+              onClick={() => {
+                setView('history');
+                if (token) void loadHistory(token);
+              }}
+            >
+              <span aria-hidden="true">◷</span>History
             </button>
             <button
               aria-current={view === 'account' ? 'page' : undefined}

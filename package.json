@@ -33,7 +33,8 @@
       "nanoid@<3": "3.3.18",
       "postcss@<8.5.23": "8.5.26",
       "deepmerge-ts@<8": "8.0.0",
-      "@colyseus/core>@colyseus/greeting-banner": "4.0.2"
+      "@colyseus/core>@colyseus/greeting-banner": "4.0.2",
+      "multer@<2.3.0": "2.3.0"
     },
     "patchedDependencies": {
       "@colyseus/core@0.16.25": "patches/@colyseus__core@0.16.25.patch"

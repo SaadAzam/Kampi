@@ -7,14 +7,19 @@ const mocks = vi.hoisted(() => ({
   payout: vi.fn(async () => ({ paid: true })),
   refund: vi.fn(async () => undefined),
   event: vi.fn(async () => ({})),
+  stats: vi.fn(async () => undefined),
   update: vi.fn(async () => ({})),
+  activate: vi.fn(async () => ({ count: 1 })),
 }));
 vi.mock('../config.js', () => ({
   env: { JWT_SECRET: 'test-secret-with-at-least-32-characters' },
   economy: { reconnectGraceMs: 30000 },
 }));
 vi.mock('@kampi/database', () => ({
-  prisma: { match: { update: mocks.update }, matchEvent: { create: mocks.event } },
+  prisma: {
+    match: { update: mocks.update, updateMany: mocks.activate },
+    matchEvent: { create: mocks.event },
+  },
 }));
 vi.mock('@kampi/domain', () => ({
   deductEntryFees: mocks.debit,
@@ -25,7 +30,7 @@ vi.mock('../auth.js', () => ({
   authenticateToken: async (token: string) =>
     token === 'bad' ? null : { userId: token, displayName: token },
 }));
-vi.mock('../games/persist-outcome.js', () => ({ persistMatchOutcome: async () => undefined }));
+vi.mock('../games/persist-outcome.js', () => ({ persistMatchOutcome: mocks.stats }));
 import { PenaltyDuelRoom } from './penalty-room.js';
 import { authorizeRoom, assertRoomAuthorized } from '../games/room-authorization.js';
 
@@ -157,5 +162,57 @@ describe('actual penalty room security and lifecycle', () => {
     expect(mocks.payout).toHaveBeenCalledTimes(2);
     expect(internal.buildSnapshot().phase).toBe('FINISHED');
     log.mockRestore();
+  });
+  it('does not forfeit a restored socket when the audit database write fails', async () => {
+    const { a, internal } = await joined();
+    vi.spyOn(room, 'allowReconnection').mockResolvedValue(a);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.event.mockRejectedValueOnce(new Error('audit unavailable'));
+    await room.onLeave(a, false);
+    expect(internal.buildSnapshot().phase).toBe('AWAITING_ACTIONS');
+    expect(mocks.payout).not.toHaveBeenCalled();
+    expect(mocks.refund).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+  it('retries stats before publishing the completed match without paying twice', async () => {
+    const { a, internal } = await joined();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.stats.mockRejectedValueOnce(new Error('stats unavailable'));
+    await room.onLeave(a, true);
+    expect(internal.buildSnapshot().phase).toBe('NEXT_TURN');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(mocks.stats).toHaveBeenCalledTimes(2);
+    expect(mocks.payout).toHaveBeenCalledTimes(1);
+    expect(internal.buildSnapshot().phase).toBe('FINISHED');
+    log.mockRestore();
+  });
+  it('refunds both seats on planned shutdown rather than awarding a forfeit', async () => {
+    const { internal } = await joined();
+    room.onBeforeShutdown();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.refund).toHaveBeenCalledTimes(1);
+    expect(mocks.payout).not.toHaveBeenCalled();
+    expect(internal.buildSnapshot().phase).toBe('ABORTED');
+  });
+  it('does not restart a match that was cancelled while entry deduction was pending', async () => {
+    room.onCreate(options());
+    const a = client('a'),
+      b = client('b');
+    await room.onJoin(a, { authToken: 'alice', seat: 'A' });
+    let release!: () => void;
+    mocks.debit.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          release = () => resolve(undefined);
+        }),
+    );
+    const joining = room.onJoin(b, { authToken: 'bob', seat: 'B' });
+    await vi.waitFor(() => expect(mocks.debit).toHaveBeenCalled());
+    room.onBeforeShutdown();
+    await vi.advanceTimersByTimeAsync(0);
+    release();
+    await joining;
+    expect(mocks.activate).not.toHaveBeenCalled();
+    expect((room as unknown as Harness).phase).toBe('ABORTED');
   });
 });

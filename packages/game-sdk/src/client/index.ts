@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Client } from 'colyseus.js';
 import {
   GAME_SDK_PROTOCOL_VERSION,
   QueueKeySchema,
@@ -80,6 +81,8 @@ export class GameSessionClient {
   private readonly listeners = new Map<keyof ListenerMap, Set<(payload: never) => void>>();
   private destroyed = false;
   private matchFinished = false;
+  private generation = 0;
+  private reconnecting?: Promise<void>;
 
   constructor(private readonly options: GameClientOptions) {}
 
@@ -114,11 +117,10 @@ export class GameSessionClient {
   async connect(): Promise<void> {
     if (this.destroyed) throw new SdkError('INTERNAL', 'Client destroyed');
     this.setStatus('connecting');
-    const { Client } = await import('colyseus.js');
     this.client =
       this.options.clientFactory?.(this.options.realtimeUrl) ??
       (new Client(this.options.realtimeUrl) as unknown as ColyseusLikeClient);
-    this.setStatus('connected');
+    if (!this.destroyed) this.setStatus('connected');
   }
 
   private queueKey(): QueueKey {
@@ -140,49 +142,73 @@ export class GameSessionClient {
       authToken: this.options.authToken,
     });
 
-    this.lobby = await this.client.joinOrCreate('lobby', options);
-    this.wireLobby(this.lobby);
+    const generation = this.generation;
+    const room = await this.client.joinOrCreate('lobby', options);
+    this.acceptLobby(room, generation);
   }
 
   async createPrivateSession(): Promise<void> {
     if (!this.client) await this.connect();
     if (!this.client) throw new SdkError('INTERNAL', 'Client not connected');
 
-    this.lobby = await this.client.joinOrCreate('lobby', {
+    const generation = this.generation;
+    const room = await this.client.joinOrCreate('lobby', {
       ...this.queueKey(),
       mode: 'PRIVATE',
       authToken: this.options.authToken,
       action: 'create_private',
     });
-    this.wireLobby(this.lobby);
+    this.acceptLobby(room, generation);
   }
 
   async joinPrivateSession(inviteCode: string): Promise<void> {
     if (!this.client) await this.connect();
     if (!this.client) throw new SdkError('INTERNAL', 'Client not connected');
 
-    this.lobby = await this.client.joinOrCreate('lobby', {
+    const generation = this.generation;
+    const room = await this.client.joinOrCreate('lobby', {
       ...this.queueKey(),
       mode: 'PRIVATE',
       authToken: this.options.authToken,
       action: 'join_private',
       inviteCode,
     });
-    this.wireLobby(this.lobby);
+    this.acceptLobby(room, generation);
+  }
+
+  private acceptLobby(room: ColyseusLikeRoom, generation: number) {
+    if (this.destroyed || generation !== this.generation) {
+      room.leave(true);
+      return;
+    }
+    this.lobby = room;
+    this.wireLobby(room);
   }
 
   private wireLobby(room: ColyseusLikeRoom): void {
     room.onMessage('queue_joined', (payload) => {
+      if (this.destroyed || this.lobby !== room) return;
       this.setStatus('queued');
       this.emit('queue_joined', payload as ListenerMap['queue_joined']);
     });
     room.onMessage('match_found', (payload) => {
+      if (this.destroyed || this.lobby !== room) return;
       void this.handleMatchFound(payload as MatchFoundPayload).catch(() => {
+        if (this.destroyed || this.lobby !== room) return;
         this.setStatus('error');
         this.emit('error', {
           code: 'INTERNAL',
           message: 'Could not join match. Please try again.',
         });
+      });
+    });
+    room.onLeave(() => {
+      if (this.destroyed || this.lobby !== room || this.match) return;
+      this.lobby = undefined;
+      this.setStatus('error');
+      this.emit('error', {
+        code: 'CONNECTION_LOST',
+        message: 'Matchmaking disconnected. Please search again.',
       });
     });
     room.onMessage('invite_created', (payload) => {
@@ -195,16 +221,22 @@ export class GameSessionClient {
   }
 
   private async handleMatchFound(payload: MatchFoundPayload): Promise<void> {
+    const generation = this.generation;
     this.matchFinished = false;
     this.emit('match_found', payload);
     if (!this.client) return;
-    this.match = await this.client.joinById(payload.roomId, {
+    const room = await this.client.joinById(payload.roomId, {
       authToken: this.options.authToken,
       seat: payload.seat,
       matchId: payload.matchId,
       gameId: payload.gameId,
     });
-    this.reconnectionToken = this.match.reconnectionToken;
+    if (this.destroyed || generation !== this.generation) {
+      room.leave(true);
+      return;
+    }
+    this.match = room;
+    this.reconnectionToken = room.reconnectionToken;
     this.setStatus('in_match');
     this.wireMatch(this.match);
     this.match.send('request_snapshot');
@@ -218,12 +250,14 @@ export class GameSessionClient {
 
   private wireMatch(room: ColyseusLikeRoom): void {
     room.onMessage('snapshot', (payload) => {
+      if (this.destroyed || this.match !== room) return;
       const state = payload as { phase?: string; status?: string } | null;
       if (state && ['FINISHED', 'ABORTED'].includes(state.phase ?? state.status ?? ''))
         this.matchFinished = true;
       this.emit('snapshot', payload);
     });
     room.onMessage('match_completed', (payload) => {
+      if (this.destroyed || this.match !== room) return;
       this.matchFinished = true;
       this.emit('match_completed', payload);
     });
@@ -239,42 +273,69 @@ export class GameSessionClient {
     });
   }
 
-  async reconnect(): Promise<void> {
-    if (!this.client || !this.reconnectionToken) {
-      this.setStatus('error');
-      return;
-    }
+  /** Resume uses the same server reservation; it never enters a new paid match. */
+  async resume(token: string): Promise<void> {
+    if (!this.client) await this.connect();
+    if (this.destroyed) return;
+    this.reconnectionToken = token;
+    await this.reconnect();
+  }
+
+  reconnect(): Promise<void> {
+    if (this.reconnecting) return this.reconnecting;
+    const task = this.reconnectMatch();
+    this.reconnecting = task;
+    void task.finally(() => {
+      if (this.reconnecting === task) this.reconnecting = undefined;
+    });
+    return task;
+  }
+
+  private async reconnectMatch(): Promise<void> {
+    if (this.destroyed || this.matchFinished) return;
+    if (!this.client || !this.reconnectionToken) return;
+    const generation = this.generation;
+    const token = this.reconnectionToken;
+    const expires = Date.now() + 30000;
     this.setStatus('reconnecting');
-    for (let attempt = 0; attempt < 9 && !this.destroyed; attempt++) {
+    let attempt = 0;
+    while (!this.destroyed && generation === this.generation && Date.now() < expires) {
       try {
-        const room = await this.client.reconnect(this.reconnectionToken);
-        if (this.destroyed) {
+        const room = await this.client.reconnect(token);
+        if (this.destroyed || generation !== this.generation) {
           room.leave(true);
           return;
         }
         this.match = room;
-        this.reconnectionToken = room.reconnectionToken ?? this.reconnectionToken;
+        this.reconnectionToken = room.reconnectionToken ?? token;
         this.wireMatch(room);
         this.setStatus('in_match');
         room.send('request_snapshot');
         return;
       } catch {
-        // The server may still be detecting the closed socket. Retry within its grace period.
-        if (attempt < 8)
-          await new Promise((resolve) => setTimeout(resolve, Math.min(250 * 2 ** attempt, 2000)));
+        if (this.destroyed || generation !== this.generation) return;
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            Math.min(250 * 2 ** Math.min(attempt++, 4), 2000, Math.max(0, expires - Date.now())),
+          ),
+        );
       }
     }
-    if (!this.destroyed) {
+    if (!this.destroyed && generation === this.generation) {
+      this.match = undefined;
+      this.reconnectionToken = undefined;
       this.setStatus('error');
       this.emit('error', {
-        code: 'INTERNAL',
-        message: 'Reconnection failed. Return to the lobby to try again.',
+        code: 'RECONNECT_EXPIRED',
+        message: 'The reconnect window has ended. Check your match history, or start another duel.',
       });
     }
   }
 
   sendAction(type: string, payload: Record<string, unknown>): void {
-    if (!this.match) throw new SdkError('WRONG_PHASE', 'Not in a match');
+    if (!this.match || this.status !== 'in_match')
+      throw new SdkError('WRONG_PHASE', 'Not in a match');
     this.match.send(type, {
       protocolVersion: GAME_SDK_PROTOCOL_VERSION,
       gameId: this.options.gameId,
@@ -283,12 +344,15 @@ export class GameSessionClient {
   }
 
   leaveQueue(): void {
-    this.lobby?.leave(true);
+    this.generation += 1;
+    const room = this.lobby;
     this.lobby = undefined;
+    room?.leave(true);
     if (this.status === 'queued') this.setStatus('connected');
   }
 
   leaveMatch(): void {
+    this.generation += 1;
     const room = this.match;
     this.match = undefined;
     this.reconnectionToken = undefined;

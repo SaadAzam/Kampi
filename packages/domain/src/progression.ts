@@ -70,7 +70,7 @@ export async function recordMatchOutcome(
     ].sort()) {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId}::uuid FOR UPDATE`;
     }
-    const weekKey = weeklyPeriodKey();
+    const weekKey = weeklyPeriodKey(fresh.finalizedAt ?? fresh.createdAt);
     for (const player of fresh.players) {
       const isWinner = player.slot === input.winnerSlot;
       const result = isWinner ? MatchPlayerResult.WIN : MatchPlayerResult.LOSS;

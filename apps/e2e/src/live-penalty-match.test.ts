@@ -146,13 +146,17 @@ describe('live Penalty full match', () => {
         )
         .toBe(true);
 
-      if (mode === 'reconnect') {
+      for (
+        let reconnectAttempt = 0;
+        mode === 'reconnect' && reconnectAttempt < 3;
+        reconnectAttempt++
+      ) {
         const reconnectionToken = roomA.reconnectionToken;
         await new Promise<void>((resolve) => {
           roomA.onLeave(() => resolve());
           roomA.connection.close();
         });
-        roomA = await clientA.reconnect(reconnectionToken);
+        roomA = await new Client(REALTIME_URL).reconnect(reconnectionToken);
         snapA = attachSnapshot(roomA);
         roomA.send('request_snapshot');
         await expect.poll(() => snapA.get()?.phase, { timeout: 5000 }).toBe('AWAITING_ACTIONS');
@@ -245,6 +249,32 @@ describe('live Penalty full match', () => {
       );
       expect(balanceA).toBe(foundA.seat === 'A' ? '10450' : '9500');
       expect(balanceB).toBe(foundB.seat === 'A' ? '10450' : '9500');
+      for (const guest of [a, b]) {
+        const headers = { Authorization: `Bearer ${guest.token}` };
+        const history = (await fetch(`${API_URL}/matches/history`, { headers }).then((r) =>
+          r.json(),
+        )) as {
+          matches: Array<{
+            matchId: string;
+            result: string;
+            score: number;
+            opponentScore: number;
+            gameName: string;
+          }>;
+        };
+        const match = history.matches.find((m) => m.matchId === foundA.matchId);
+        expect(match?.result).toMatch(/WIN|LOSS/);
+        expect(match?.gameName).toBe('Penalty Duel');
+        expect(match?.score).toBeTypeOf('number');
+        expect(match?.opponentScore).toBeTypeOf('number');
+        const stats = (await fetch(`${API_URL}/stats/me`, { headers }).then((r) => r.json())) as {
+          wins: number;
+          losses: number;
+          xp: number;
+        };
+        expect(stats.wins + stats.losses).toBe(1);
+        expect(stats.xp).toBe(match?.result === 'WIN' ? 50 : 15);
+      }
       await roomA.leave();
       await roomB.leave();
       await lobbyA.leave();

@@ -200,10 +200,13 @@ export class PenaltyDuelRoom extends Room {
           entryFeeKey: `entry:${this.matchId}:${p.userId}`,
         })),
       });
-      await prisma.match.update({
-        where: { id: this.matchId },
+      if (this.isTerminal()) return;
+      const activated = await prisma.match.updateMany({
+        where: { id: this.matchId, status: 'WAITING' },
         data: { status: 'ACTIVE', roomId: this.roomId },
       });
+      if (this.isTerminal()) return;
+      if (activated.count !== 1) throw new Error('Match is no longer waiting');
       this.firstKicker = chooseFirstKicker(this.random);
       await prisma.matchEvent.create({
         data: {
@@ -212,7 +215,7 @@ export class PenaltyDuelRoom extends Room {
           payload: { firstKicker: this.firstKicker, gameId: PENALTY_GAME_ID },
         },
       });
-      this.beginNextTurn();
+      if (!this.isTerminal()) this.beginNextTurn();
     } catch (error) {
       console.error('Penalty match start failed', error);
       await this.abort('Failed to deduct entry fees');
@@ -276,13 +279,15 @@ export class PenaltyDuelRoom extends Room {
       this.guards.set(restored.sessionId, new CommandGuard());
       this.broadcastSnapshot();
       restored.send('snapshot', this.buildSnapshot(seat));
-      await prisma.matchEvent.create({
-        data: {
-          matchId: this.matchId,
-          type: 'RECONNECT',
-          payload: { seat, userId: player.userId },
-        },
-      });
+      void prisma.matchEvent
+        .create({
+          data: {
+            matchId: this.matchId,
+            type: 'RECONNECT',
+            payload: { seat, userId: player.userId },
+          },
+        })
+        .catch((error) => console.error('Reconnect audit failed', error));
     } catch {
       if (this.isTerminal()) return;
       player.connected = false;
@@ -565,15 +570,18 @@ export class PenaltyDuelRoom extends Room {
 
         const playerA = this.players.get('A');
         const playerB = this.players.get('B');
-        await persistMatchOutcome({
-          matchId: this.matchId,
-          winnerSlot: winnerSeat === 'A' ? 1 : 2,
-          winnerUserId: winner?.kind === 'HUMAN' && winner.userId ? winner.userId : null,
-          scores: [
-            { slot: 1, score: playerA?.score ?? 0 },
-            { slot: 2, score: playerB?.score ?? 0 },
-          ],
-        });
+        await persistMatchOutcome(
+          {
+            matchId: this.matchId,
+            winnerSlot: winnerSeat === 'A' ? 1 : 2,
+            winnerUserId: winner?.kind === 'HUMAN' && winner.userId ? winner.userId : null,
+            scores: [
+              { slot: 1, score: playerA?.score ?? 0 },
+              { slot: 2, score: playerB?.score ?? 0 },
+            ],
+          },
+          true,
+        );
 
         this.terminalPublished = true;
         this.broadcastSnapshot();
@@ -697,6 +705,12 @@ export class PenaltyDuelRoom extends Room {
       )?.[0];
       client.send('snapshot', this.buildSnapshot(seat));
     }
+  }
+
+  override onBeforeShutdown() {
+    // Planned restarts cancel and refund unfinished duels instead of forfeiting a random seat.
+    if (!this.isTerminal()) void this.abort('The arena is restarting. Please start a new duel.');
+    else if (this.terminalPublished) void this.disconnect();
   }
 
   override onDispose() {

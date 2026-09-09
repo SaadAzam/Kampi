@@ -22,7 +22,7 @@ export class MatchesController {
       where: { userId: user.id },
       include: {
         match: {
-          include: { game: true },
+          include: { game: true, players: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -33,6 +33,14 @@ export class MatchesController {
       matches: players.map((player) => ({
         matchId: player.matchId,
         gameSlug: player.match.game.slug,
+        gameName: player.match.game.name,
+        opponent:
+          player.match.players.find((opponent) => opponent.slot !== player.slot)?.displayName ??
+          'Opponent',
+        opponentScore:
+          player.match.players.find((opponent) => opponent.slot !== player.slot)?.score ?? 0,
+        botFill: player.match.botFill,
+        finalizedAt: player.match.finalizedAt?.toISOString() ?? null,
         status: player.match.status,
         result: player.result,
         score: player.score,

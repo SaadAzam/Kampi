@@ -199,3 +199,87 @@ describe('completed match connections', () => {
     session.destroy();
   });
 });
+
+describe('connection recovery races', () => {
+  const make = (fake: FakeClient) =>
+    new GameSessionClient({
+      realtimeUrl: 'ws://localhost',
+      authToken: 'test',
+      gameId: 'penalty-duel',
+      clientFactory: () => fake,
+    });
+  it('discards a lobby that arrives after cancellation', async () => {
+    const fake = new FakeClient();
+    const room = await fake.joinOrCreate('lobby');
+    let resolve!: (value: typeof room) => void;
+    vi.spyOn(fake, 'joinOrCreate').mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const leave = vi.spyOn(room, 'leave');
+    const session = make(fake);
+    await session.connect();
+    const pending = session.joinQueue();
+    session.leaveQueue();
+    resolve(room);
+    await pending;
+    expect(leave).toHaveBeenCalledWith(true);
+    expect(session.getConnectionStatus()).toBe('connected');
+    session.destroy();
+  });
+  it('coalesces reconnect requests and requests an authoritative snapshot', async () => {
+    const fake = new FakeClient();
+    const room = await fake.reconnect('token');
+    let resolve!: (value: typeof room) => void;
+    const reconnect = vi.spyOn(fake, 'reconnect').mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const send = vi.spyOn(room, 'send');
+    const session = make(fake);
+    await session.connect();
+    const resume = session.resume('token');
+    const duplicate = session.reconnect();
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    resolve(room);
+    await Promise.all([resume, duplicate]);
+    expect(send).toHaveBeenCalledWith('request_snapshot');
+    expect(session.getConnectionStatus()).toBe('in_match');
+    session.destroy();
+  });
+  it('does not resurrect a match after leaving during a reconnect', async () => {
+    const fake = new FakeClient();
+    const room = await fake.reconnect('token');
+    let resolve!: (value: typeof room) => void;
+    vi.spyOn(fake, 'reconnect').mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const leave = vi.spyOn(room, 'leave');
+    const session = make(fake);
+    await session.connect();
+    const pending = session.resume('token');
+    session.leaveMatch();
+    resolve(room);
+    await pending;
+    expect(leave).toHaveBeenCalledWith(true);
+    expect(session.getConnectionStatus()).toBe('connected');
+    session.destroy();
+  });
+  it('surfaces a lost matchmaking socket instead of leaving a permanent spinner', async () => {
+    const fake = new FakeClient();
+    const session = make(fake);
+    const error = vi.fn();
+    session.on('error', error);
+    await session.joinQueue();
+    fake.rooms[0]!.disconnect(1006);
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ code: 'CONNECTION_LOST' }));
+    session.destroy();
+  });
+});

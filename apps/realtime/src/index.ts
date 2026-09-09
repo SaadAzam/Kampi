@@ -14,6 +14,7 @@ import { env } from './config.js';
 import { LobbyRoom } from './rooms/lobby-room.js';
 import { RpsRoom } from './rooms/rps-room.js';
 import { PenaltyDuelRoom } from './rooms/penalty-room.js';
+import { recoverPenaltyOutcomes } from './games/recover-outcomes.js';
 import { gameRegistry } from './games/registry.js';
 
 const app = express();
@@ -40,6 +41,8 @@ app.get('/health/ready', async (_req, res) => {
 const gameServer = new Server({
   transport: new WebSocketTransport({
     maxPayload: 16 * 1024,
+    pingInterval: 3000,
+    pingMaxRetries: 2,
     server: app.listen(env.REALTIME_PORT, '0.0.0.0', () => {
       console.info(`Realtime listening on port ${env.REALTIME_PORT}`);
     }),
@@ -51,8 +54,23 @@ gameServer.define('lobby', LobbyRoom);
 gameServer.define('rps', RpsRoom);
 gameServer.define('penalty-duel', PenaltyDuelRoom);
 
-process.on('SIGINT', async () => {
-  await gameServer.gracefullyShutdown(false);
+let recovering = false;
+const recover = async () => {
+  if (recovering) return;
+  recovering = true;
+  try {
+    await recoverPenaltyOutcomes();
+  } catch (error) {
+    console.error('Outcome recovery will retry', error);
+  } finally {
+    recovering = false;
+  }
+};
+void recover();
+const recoveryTimer = setInterval(() => void recover(), 15000);
+recoveryTimer.unref();
+// Colyseus already handles both SIGINT and SIGTERM. Avoid racing a second shutdown handler.
+gameServer.onShutdown(async () => {
+  clearInterval(recoveryTimer);
   await prisma.$disconnect();
-  process.exit(0);
 });
