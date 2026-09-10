@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 const ART = '/art/lobby';
 const CARD_SIZES = '(max-width: 700px) 44vw, (max-width: 1099px) 44vw, 300px';
@@ -52,11 +52,16 @@ export function LobbyHome({
   const leaders = boards
     .flatMap((board) =>
       board.entries
-        .slice(0, 3)
+        .slice(0, 20)
         .map((entry) => ({ ...entry, gameName: board.gameName, gameSlug: board.gameSlug })),
     )
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .slice(0, 40);
+  const [tickerPaused, setTickerPaused] = useState(false);
+  // Each half is wider than the largest lobby viewport, even for a short live board.
+  const loopEntries = leaders.length
+    ? Array.from({ length: Math.ceil(8 / leaders.length) }, () => leaders).flat()
+    : [];
   const sortedGames = [...games].sort(
     (a, b) => Number(b.slug === 'penalty-duel') - Number(a.slug === 'penalty-duel'),
   );
@@ -88,28 +93,50 @@ export function LobbyHome({
         <div
           className="contender-strip"
           aria-label="Weekly top players"
-          style={{ '--contender-count': leaders.length } as CSSProperties}
+          data-paused={tickerPaused}
+          style={{ '--loop-count': loopEntries.length } as CSSProperties}
         >
-          {leaders.map((entry, index) => (
-            <button
-              key={`${entry.gameSlug}-${entry.userId}`}
-              className={`contender contender-${index % 3}`}
-              onClick={onRankings}
-              style={{ '--item-index': index } as CSSProperties}
-            >
-              <span className="contender-avatar" aria-hidden="true">
-                {initials(entry.displayName)}
-              </span>
-              <span className="contender-name">
-                <strong title={entry.displayName}>{entry.displayName}</strong>
-                <small>{entry.gameName}</small>
-              </span>
-              <span className="contender-score" title="Wins this week">
-                <span aria-hidden="true">★</span> {entry.score}
-                <span className="sr-only"> wins this week</span>
-              </span>
-            </button>
-          ))}
+          <div className="contender-viewport">
+            <div className="contender-track">
+              {[0, 1].map((copy) => (
+                <div className="contender-group" key={copy} aria-hidden={copy === 1 || undefined}>
+                  {loopEntries.map((entry, index) => {
+                    const duplicate = copy === 1 || index >= leaders.length;
+                    return (
+                      <button
+                        key={`${index}-${entry.gameSlug}-${entry.userId}`}
+                        className={`contender contender-${index % 3}${duplicate ? ' contender-duplicate' : ''}`}
+                        onClick={onRankings}
+                        tabIndex={duplicate ? -1 : undefined}
+                        aria-hidden={duplicate || undefined}
+                        onPointerDown={duplicate ? (event) => event.preventDefault() : undefined}
+                      >
+                        <span className="contender-avatar" aria-hidden="true">
+                          {initials(entry.displayName)}
+                        </span>
+                        <span className="contender-name">
+                          <strong title={entry.displayName}>{entry.displayName}</strong>
+                          <small>{entry.gameName}</small>
+                        </span>
+                        <span className="contender-score" title="Wins this week">
+                          <span aria-hidden="true">★</span> {entry.score}
+                          <span className="sr-only"> wins this week</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            className="ticker-toggle"
+            aria-label={tickerPaused ? 'Resume player strip' : 'Pause player strip'}
+            aria-pressed={tickerPaused}
+            onClick={() => setTickerPaused((paused) => !paused)}
+          >
+            <span aria-hidden="true">{tickerPaused ? '▶' : 'Ⅱ'}</span>
+          </button>
         </div>
       ) : (
         <div className="contenders-empty">

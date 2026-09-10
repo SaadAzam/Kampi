@@ -172,6 +172,14 @@ async function mockBackend(context: BrowserContext) {
                 displayName: 'Goal Guardian',
                 score: 5,
               },
+              ...['Corner King', 'Chip Champion', 'Sky Keeper', 'Final Whistle', 'Goal Line'].map(
+                (displayName, index) => ({
+                  rank: index + 4,
+                  userId: `fixture-contender-${index}`,
+                  displayName,
+                  score: Math.max(1, 4 - index),
+                }),
+              ),
             ],
           },
           {
@@ -401,6 +409,37 @@ for (const { width, height } of [
         height,
       );
     }
+    const dockArt = await navigation.locator('button .nav-icon img').evaluateAll((images) =>
+      images.map((image) => {
+        const bounds = image.getBoundingClientRect();
+        return {
+          centerX: (bounds.left + bounds.width / 2) / innerWidth,
+          width: bounds.width,
+          bottom: bounds.bottom,
+        };
+      }),
+    );
+    const dockCenters =
+      width >= 1100 ? [0.1354, 0.2649, 0.5, 0.7143, 0.8348] : [0.0844, 0.2489, 0.5, 0.7444, 0.9022];
+    const dockScale =
+      height <= 500 && width > height
+        ? 0.44
+        : width >= 1100
+          ? 0.81
+          : Math.min(1.2, Math.max(0.5, width / 900));
+    for (const [index, graphic] of dockArt.entries()) {
+      expect(graphic.centerX, 'Dock artwork follows the reference positions').toBeCloseTo(
+        dockCenters[index]!,
+        3,
+      );
+      expect(graphic.width, 'Dock icon and caption retain the reference scale').toBeCloseTo(
+        (index === 2 ? 156 : 115) * dockScale,
+        0,
+      );
+    }
+    expect(dockArt[2]!.bottom, 'Battle is raised above the neighboring labels').toBeLessThan(
+      dockArt[0]!.bottom - 7 * dockScale,
+    );
     const rewardLayout = await page.locator('.rewards-banner').evaluate((banner) => {
       const bounds = banner.getBoundingClientRect();
       const graphic = banner.querySelector('.reward-button img')!.getBoundingClientRect();
@@ -445,7 +484,7 @@ for (const { width, height } of [
               ? 'reference-wide'
               : undefined;
     if (process.env.WEB_TEST_CAPTURE_DIR && captureName) {
-      await expect(page.getByLabel('Weekly top players').getByRole('button')).toHaveCount(5);
+      await expect(page.locator('.contender:not([aria-hidden="true"])')).toHaveCount(10);
       await expect(
         page.getByRole('button', { name: 'Play Penalty Duel', exact: true }),
       ).toBeEnabled();
@@ -650,6 +689,55 @@ test('menu traps keyboard focus and Escape returns focus to its trigger', async 
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
 });
 
+test('player strip includes deeper ranks, scrolls left, pauses and loops without a gap', async ({
+  context,
+  page,
+}) => {
+  await mockBackend(context);
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await openLobby(page);
+  await expect(page.locator('.contender:not([aria-hidden="true"])')).toHaveCount(10);
+  await expect(
+    page.locator('.contender:not([aria-hidden="true"])').getByText('Goal Line'),
+  ).toHaveCount(1);
+  const track = page.locator('.contender-track');
+  const readX = () =>
+    track.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41);
+  const startX = await readX();
+  await expect.poll(readX).toBeLessThan(startX - 5);
+  await page.getByRole('button', { name: 'Pause player strip', exact: true }).click();
+  await page.mouse.move(0, 0);
+  await expect
+    .poll(() => track.evaluate((element) => getComputedStyle(element).animationPlayState))
+    .toBe('paused');
+  await page.getByRole('button', { name: 'Resume player strip', exact: true }).click();
+  await page.mouse.move(0, 0);
+  await expect
+    .poll(() => track.evaluate((element) => getComputedStyle(element).animationPlayState))
+    .toBe('running');
+  const loop = await track.evaluate((element) => {
+    const halves = Array.from(element.children);
+    const animation = element.getAnimations()[0]!;
+    const duration = Number(animation.effect!.getTiming().duration);
+    animation.pause();
+    animation.currentTime = duration * 0.25;
+    const firstX = new DOMMatrixReadOnly(getComputedStyle(element).transform).m41;
+    animation.currentTime = duration * 1.25;
+    const nextX = new DOMMatrixReadOnly(getComputedStyle(element).transform).m41;
+    return {
+      sameContent: halves[0]!.textContent === halves[1]!.textContent,
+      halfWidth: halves[0]!.getBoundingClientRect().width,
+      viewportWidth: element.parentElement!.getBoundingClientRect().width,
+      displacement: Math.abs(firstX - nextX),
+      iterations: animation.effect!.getTiming().iterations,
+    };
+  });
+  expect(loop.sameContent).toBe(true);
+  expect(loop.halfWidth).toBeGreaterThan(loop.viewportWidth);
+  expect(loop.displacement).toBeLessThan(1);
+  expect(loop.iterations).toBe(Infinity);
+});
+
 test('reduced motion disables entrance animations without preventing play', async ({
   context,
   page,
@@ -664,6 +752,12 @@ test('reduced motion disables entrance animations without preventing play', asyn
         .evaluateAll((cards) => cards.map((card) => getComputedStyle(card).animationName)),
     )
     .toEqual(['none', 'none', 'none', 'none']);
+  await expect(page.getByRole('button', { name: 'Pause player strip', exact: true })).toBeHidden();
+  expect(
+    await page
+      .locator('.contender-track')
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none');
   await page.getByRole('button', { name: 'Play Penalty Duel', exact: true }).click();
   await expect(page.frameLocator('#game-frame').getByTestId('session-player')).toHaveText(
     PLAYER_ID,
