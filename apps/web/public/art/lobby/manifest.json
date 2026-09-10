@@ -304,5 +304,213 @@
         "bytes": 4296
       }
     }
+  },
+  {
+    "name": "slice-play-button-v1",
+    "width": 157,
+    "height": 71,
+    "alpha": true,
+    "description": "Original Play button, including its label; painted bounds x6,y6,w145,h59 inside a 157x71 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-play-button-v1-157.webp",
+        "bytes": 13074
+      }
+    }
+  },
+  {
+    "name": "slice-battle-base-v1",
+    "width": 231,
+    "height": 144,
+    "alpha": true,
+    "description": "Original text-free hexagonal battle plinth; alpha/glow uses full 231x144 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-battle-base-v1-231.webp",
+        "bytes": 8858
+      }
+    }
+  },
+  {
+    "name": "slice-bottom-bar-v1",
+    "width": 900,
+    "height": 149,
+    "alpha": true,
+    "description": "Original continuous cyan/red metal navigation rail; full 900x149 canvas, no icons or text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-bottom-bar-v1-900.webp",
+        "bytes": 13274
+      }
+    }
+  },
+  {
+    "name": "slice-reward-panel-v1",
+    "width": 758,
+    "height": 205,
+    "alpha": true,
+    "description": "Original blue banner panel without words or crest; painted bounds x17,y9,w724,h175, shadow fills original 758x205 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-reward-panel-v1-758.webp",
+        "bytes": 7770
+      }
+    }
+  },
+  {
+    "name": "slice-reward-button-v1",
+    "width": 247,
+    "height": 57,
+    "alpha": true,
+    "description": "Original VIEW REWARDS button including label; painted bounds cover 247x57 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-reward-button-v1-247.webp",
+        "bytes": 19218
+      }
+    }
+  },
+  {
+    "name": "slice-balance-counter-v1",
+    "width": 126,
+    "height": 57,
+    "alpha": true,
+    "description": "Original empty metallic balance counter; painted bounds x1,y0,w125,h57, no amount or coin.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-balance-counter-v1-126.webp",
+        "bytes": 7868
+      }
+    }
+  },
+  {
+    "name": "slice-coin-balance-v1",
+    "width": 180,
+    "height": 77,
+    "alpha": true,
+    "description": "Original combined blue K coin and empty counter; painted bounds x6,y6,w174,h65 inside 180x77 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-coin-balance-v1-180.webp",
+        "bytes": 16352
+      }
+    }
+  },
+  {
+    "name": "slice-penalty-card-v1",
+    "width": 424,
+    "height": 372,
+    "alpha": true,
+    "description": "Original complete card with illustration, frame, empty footer and all shadow; painted bounds x17,y9,w391,h342 inside 424x372 canvas.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-penalty-card-v1-424.webp",
+        "bytes": 42718
+      }
+    }
+  },
+  {
+    "name": "slice-penalty-card-tight-v1",
+    "width": 391,
+    "height": 338,
+    "alpha": true,
+    "description": "Original full card cropped to its frame at source x17,y9,w391,h338; diffuse outer shadow intentionally excluded. No baked labels.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-penalty-card-tight-v1-391.webp",
+        "bytes": 41486
+      }
+    }
+  },
+  {
+    "name": "slice-card-shell-v1",
+    "width": 391,
+    "height": 338,
+    "alpha": true,
+    "description": "Original trimmed card border and blank footer, with a transparent top-rounded illustration aperture x3,y3,w385,h229. Original divider and lower frame retained; no text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-card-shell-v1-391.webp",
+        "bytes": 4698
+      }
+    }
+  },
+  {
+    "name": "slice-card-footer-v1",
+    "width": 391,
+    "height": 106,
+    "alpha": true,
+    "description": "Original reusable green-glow empty card footer and rounded lower frame at source x17,y241,w391,h106; no text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-card-footer-v1-391.webp",
+        "bytes": 3830
+      }
+    }
+  },
+  {
+    "name": "slice-dock-left-v1",
+    "width": 240,
+    "height": 149,
+    "alpha": true,
+    "description": "Original dock left crop at source x0,y0,w240,h149.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-dock-left-v1-240.webp",
+        "bytes": 3184
+      }
+    }
+  },
+  {
+    "name": "slice-dock-center-v1",
+    "width": 420,
+    "height": 149,
+    "alpha": true,
+    "description": "Original dock center crop at source x240,y0,w420,h149.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-dock-center-v1-420.webp",
+        "bytes": 7600
+      }
+    }
+  },
+  {
+    "name": "slice-dock-right-v1",
+    "width": 240,
+    "height": 149,
+    "alpha": true,
+    "description": "Original dock right crop at source x660,y0,w240,h149.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-dock-right-v1-240.webp",
+        "bytes": 3098
+      }
+    }
+  },
+  {
+    "name": "slice-play-button-v2",
+    "width": 157,
+    "height": 71,
+    "alpha": true,
+    "description": "Original play button; high-quality lossy WebP, same source canvas/alpha.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-play-button-v2-157.webp",
+        "bytes": 5134
+      }
+    }
+  },
+  {
+    "name": "slice-reward-button-v2",
+    "width": 247,
+    "height": 57,
+    "alpha": true,
+    "description": "Original reward button; high-quality lossy WebP, same source canvas/alpha.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/slice-reward-button-v2-247.webp",
+        "bytes": 5696
+      }
+    }
   }
 ]

@@ -62,7 +62,6 @@ export function LobbyHeader({
                 : `Balance: ${BigInt(balance).toLocaleString()} chips. Open profile`
             }
           >
-            <img src={`${ART}/coin-78.webp`} width="48" height="48" alt="" />
             <span>{balance === null ? 'Sign in' : BigInt(balance).toLocaleString()}</span>
           </button>
         </div>
@@ -140,7 +139,11 @@ export function LobbyNavigation({
 }) {
   return (
     <nav className="bottom-nav" aria-label="Primary navigation">
-      <div className="nav-rail" aria-hidden="true" />
+      <div className="nav-rail" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
       <div className="nav-inner">
         {(
           [

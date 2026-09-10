@@ -3,8 +3,7 @@
 import type { CSSProperties } from 'react';
 
 const ART = '/art/lobby';
-const CARD_SIZES =
-  '(max-width: 359px) 92vw, (max-width: 700px) 46vw, (max-width: 1100px) 44vw, 460px';
+const CARD_SIZES = '(max-width: 700px) 44vw, (max-width: 1099px) 44vw, 300px';
 export type LobbyGame = {
   id: string;
   slug: string;
@@ -36,7 +35,6 @@ export function LobbyHome({
   boards,
   connection,
   loading,
-  playerReady,
   onPlay,
   onRewards,
   onRankings,
@@ -46,7 +44,6 @@ export function LobbyHome({
   boards: LobbyBoard[];
   connection: 'checking' | 'online' | 'offline';
   loading: boolean;
-  playerReady: boolean;
   onPlay: (game: LobbyGame) => void;
   onRewards: () => void;
   onRankings: () => void;
@@ -72,9 +69,9 @@ export function LobbyHome({
           <p className="rewards-title">
             KAMPI <span>REWARDS</span>
           </p>
-          <p className="rewards-description">Play duels. Earn XP. Rise through the ranks.</p>
-          <button className="reward-button" onClick={onRewards}>
-            View rewards <span aria-hidden="true">↗</span>
+          <p className="rewards-description">FREE MISSION EARN REWARDS</p>
+          <button className="reward-button" onClick={onRewards} aria-label="View rewards">
+            <img src={`${ART}/slice-reward-button-v2-247.webp`} width="247" height="57" alt="" />
           </button>
         </div>
         <img
@@ -87,19 +84,12 @@ export function LobbyHome({
         />
       </div>
 
-      <div className="leaders-heading">
-        <span>
-          <span className="small-star" aria-hidden="true">
-            ✦
-          </span>{' '}
-          THE WEEK’S CONTENDERS
-        </span>
-        <button onClick={onRankings}>
-          Leaderboard <span aria-hidden="true">↗</span>
-        </button>
-      </div>
       {leaders.length ? (
-        <div className="contender-strip" aria-label="Weekly top players">
+        <div
+          className="contender-strip"
+          aria-label="Weekly top players"
+          style={{ '--contender-count': leaders.length } as CSSProperties}
+        >
           {leaders.map((entry, index) => (
             <button
               key={`${entry.gameSlug}-${entry.userId}`}
@@ -134,29 +124,18 @@ export function LobbyHome({
         </div>
       )}
 
-      <div className="arena-heading">
-        <div>
-          <span className="eyebrow">PICK YOUR GAME</span>
-          <h2>
-            Enter the arena<span>.</span>
-          </h2>
-        </div>
-        <span className="arena-status" role="status">
-          <i className={connection === 'online' ? 'online-dot' : 'offline-dot'} />
-          {connection === 'online'
-            ? 'Arena online'
-            : connection === 'checking'
-              ? 'Connecting'
-              : 'Reconnecting'}
-        </span>
-      </div>
+      <h2 className="sr-only">Choose your game</h2>
       {connection === 'offline' && (
         <div className="connection-notice" role="status">
           <span>The arena is taking a moment to reconnect.</span>
           <button onClick={onRetry}>Try again</button>
         </div>
       )}
-      <div className="game-grid" aria-busy={loading}>
+      <div
+        className="game-grid"
+        aria-busy={loading}
+        style={{ '--game-columns': Math.min(sortedGames.length || 2, 4) } as CSSProperties}
+      >
         {sortedGames.map((game, index) => {
           const penalty = game.slug === 'penalty-duel';
           const art = penalty ? 'penalty-action' : 'rps';
@@ -172,22 +151,6 @@ export function LobbyHome({
             >
               <div className="game-art">
                 <picture>
-                  {penalty && (
-                    <source
-                      media="(min-width: 701px), (min-resolution: 2.5dppx)"
-                      type="image/avif"
-                      srcSet={`${ART}/penalty-desktop-768.avif 768w, ${ART}/penalty-desktop-1152.avif 1152w`}
-                      sizes={CARD_SIZES}
-                    />
-                  )}
-                  {penalty && (
-                    <source
-                      media="(min-width: 701px), (min-resolution: 2.5dppx)"
-                      type="image/webp"
-                      srcSet={`${ART}/penalty-desktop-768.webp 768w, ${ART}/penalty-desktop-1152.webp 1152w`}
-                      sizes={CARD_SIZES}
-                    />
-                  )}
                   <source type="image/avif" srcSet={sourceSet('avif')} sizes={CARD_SIZES} />
                   <img
                     src={`${ART}/${art}-${large}.webp`}
@@ -204,45 +167,37 @@ export function LobbyHome({
                     decoding="async"
                   />
                 </picture>
-                <span className="game-badge">
-                  <span aria-hidden="true">{penalty ? '✦' : '◆'}</span>{' '}
-                  {penalty ? 'FAN FAVOURITE' : 'THE ORIGINAL DUEL'}
-                </span>
-                <span className="game-mode">
-                  1 <span>vs</span> 1
-                </span>
               </div>
               <div className="game-card-body">
-                <div className="game-title-row">
+                <div className="game-card-details">
                   <h3>{game.name}</h3>
-                  <span className="card-arrow" aria-hidden="true">
-                    ↗
-                  </span>
-                </div>
-                <p className="game-description">
-                  {penalty
-                    ? 'Hold your nerve. Take the winning shot.'
-                    : 'Read your rival. Make your move.'}
-                </p>
-                <div className="game-card-bottom">
                   <div className="game-economy">
                     <img src={`${ART}/coin-40.webp`} width="28" height="28" alt="" />
-                    <div>
-                      <strong>
-                        {BigInt(game.entryFee).toLocaleString()} <span>entry</span>
-                      </strong>
-                      <small>Win {BigInt(game.winnerPayout).toLocaleString()} chips</small>
-                    </div>
+                    <span
+                      aria-label={`${BigInt(game.entryFee).toLocaleString()} chips entry. Win ${BigInt(game.winnerPayout).toLocaleString()} chips`}
+                    >
+                      {BigInt(game.entryFee).toLocaleString()}
+                      <span className="sr-only"> chips </span>
+                      <span className="entry-label" aria-hidden="true">
+                        {' '}
+                        entry
+                      </span>
+                    </span>
                   </div>
-                  <button
-                    className="play-button"
-                    aria-label={`Play ${game.name}`}
-                    onClick={() => onPlay(game)}
-                    disabled={connection === 'offline'}
-                  >
-                    Play <span aria-hidden="true">▸</span>
-                  </button>
                 </div>
+                <button
+                  className="play-button"
+                  aria-label={`Play ${game.name}`}
+                  onClick={() => onPlay(game)}
+                  disabled={connection === 'offline'}
+                >
+                  <img
+                    src={`${ART}/slice-play-button-v2-157.webp`}
+                    width="157"
+                    height="71"
+                    alt=""
+                  />
+                </button>
               </div>
               <div className="card-underglow" aria-hidden="true" />
             </article>
@@ -261,19 +216,6 @@ export function LobbyHome({
       {!loading && games.length === 0 && connection === 'online' && (
         <div className="empty-state">The next games are warming up. Check back shortly.</div>
       )}
-      <div className="lobby-footer">
-        <span className="footer-mark" aria-hidden="true">
-          ✦
-        </span>
-        <p>
-          One opponent. One moment. <strong>Make it yours.</strong>
-        </p>
-        <span>
-          {playerReady
-            ? 'Your progress is saved after every duel.'
-            : 'Jump in as a guest or sign in to keep your progress.'}
-        </span>
-      </div>
     </section>
   );
 }

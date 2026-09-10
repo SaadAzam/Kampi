@@ -574,7 +574,6 @@ export default function HomePage() {
                 boards={boards}
                 connection={connection}
                 loading={catalogLoading}
-                playerReady={!!player}
                 onPlay={(game) => (player ? openGame(game) : navigate('account'))}
                 onRewards={() => navigate('rewards')}
                 onRankings={() => navigate('rankings')}

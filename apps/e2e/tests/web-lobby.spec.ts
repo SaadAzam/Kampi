@@ -283,6 +283,8 @@ for (const { width, height } of [
   { width: 390, height: 844 },
   { width: 768, height: 900 },
   { width: 844, height: 390 },
+  { width: 900, height: 1440 },
+  { width: 1344, height: 752 },
   { width: 1440, height: 950 },
   { width: 1920, height: 1080 },
 ]) {
@@ -310,6 +312,70 @@ for (const { width, height } of [
         ),
       )
       .toBe(true);
+    await expect
+      .poll(() =>
+        page.locator('.game-card').evaluateAll((cards) => {
+          if (cards.length !== 2) return Number.POSITIVE_INFINITY;
+          return Math.abs(
+            cards[0]!.getBoundingClientRect().top - cards[1]!.getBoundingClientRect().top,
+          );
+        }),
+      )
+      .toBeLessThanOrEqual(1);
+    const cardLayouts = await page.locator('.game-card').evaluateAll((cards) =>
+      cards.map((card) => {
+        const play = card.querySelector<HTMLButtonElement>('.play-button');
+        const footer = card.querySelector<HTMLElement>('.game-card-body');
+        const economy = card.querySelector<HTMLElement>('.game-economy');
+        const graphic = play?.querySelector('img');
+        if (!play || !footer || !economy || !graphic)
+          throw new Error('Game card controls are missing');
+        const cardBounds = card.getBoundingClientRect();
+        const playBounds = play.getBoundingClientRect();
+        const footerBounds = footer.getBoundingClientRect();
+        const graphicBounds = graphic.getBoundingClientRect();
+        // The economy wrapper can span the footer; its coin and text define its visible edge.
+        const economyRight = Math.max(
+          ...Array.from(economy.children, (child) => child.getBoundingClientRect().right),
+        );
+        return {
+          name: card.querySelector('h3')?.textContent ?? 'Game',
+          ratio: cardBounds.width / cardBounds.height,
+          playWidthRatio: playBounds.width / cardBounds.width,
+          playWidth: playBounds.width,
+          playHeight: playBounds.height,
+          playLeft: playBounds.left,
+          economyRight,
+          graphicFitsFooter:
+            graphicBounds.width > 0 &&
+            graphicBounds.left >= footerBounds.left - 1 &&
+            graphicBounds.right <= footerBounds.right + 1,
+        };
+      }),
+    );
+    for (const card of cardLayouts) {
+      expect(
+        card.ratio,
+        `${card.name} keeps the reference card proportions`,
+      ).toBeGreaterThanOrEqual(1.1);
+      expect(card.ratio, `${card.name} keeps the reference card proportions`).toBeLessThanOrEqual(
+        1.22,
+      );
+      expect(card.playWidthRatio, `${card.name} keeps Play compact`).toBeLessThanOrEqual(0.45);
+      expect(card.playWidth, `${card.name} Play has a usable touch target`).toBeGreaterThanOrEqual(
+        44,
+      );
+      expect(card.playHeight, `${card.name} Play has a usable touch target`).toBeGreaterThanOrEqual(
+        44,
+      );
+      expect(
+        card.playLeft,
+        `${card.name} Play stays to the right of the economy`,
+      ).toBeGreaterThanOrEqual(card.economyRight - 1);
+      expect(card.graphicFitsFooter, `${card.name} Play artwork stays within the footer`).toBe(
+        true,
+      );
+    }
     const labelBounds = await navigation.locator('button > span:last-child').evaluateAll((labels) =>
       labels.map((label) => ({
         text: label.textContent,
@@ -322,7 +388,7 @@ for (const { width, height } of [
         height,
       );
     }
-    if (width === 1440) {
+    if (width >= 1100) {
       const rail = await navigation.boundingBox();
       expect(rail).not.toBeNull();
       for (const game of catalog) {
@@ -336,16 +402,23 @@ for (const { width, height } of [
         ).toBeLessThanOrEqual(rail!.y + 5);
       }
     }
-    if (process.env.WEB_TEST_CAPTURE_DIR && (width === 390 || width === 1440)) {
+    const captureName =
+      width === 390
+        ? 'mobile'
+        : width === 1440
+          ? 'desktop'
+          : width === 900
+            ? 'reference-portrait'
+            : width === 1344
+              ? 'reference-wide'
+              : undefined;
+    if (process.env.WEB_TEST_CAPTURE_DIR && captureName) {
       await expect(page.getByLabel('Weekly top players').getByRole('button')).toHaveCount(5);
       await expect(
         page.getByRole('button', { name: 'Play Penalty Duel', exact: true }),
       ).toBeEnabled();
       await page.screenshot({
-        path: join(
-          process.env.WEB_TEST_CAPTURE_DIR,
-          `kampi-lobby-${width === 390 ? 'mobile' : 'desktop'}.png`,
-        ),
+        path: join(process.env.WEB_TEST_CAPTURE_DIR, `kampi-lobby-${captureName}.png`),
         animations: 'disabled',
       });
       const metrics = await page.evaluate(() => ({
@@ -370,10 +443,7 @@ for (const { width, height } of [
           })),
       }));
       await writeFile(
-        join(
-          process.env.WEB_TEST_CAPTURE_DIR,
-          `kampi-lobby-${width === 390 ? 'mobile' : 'desktop'}-metrics.json`,
-        ),
+        join(process.env.WEB_TEST_CAPTURE_DIR, `kampi-lobby-${captureName}-metrics.json`),
         `${JSON.stringify(metrics, null, 2)}\n`,
       );
     }

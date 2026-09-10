@@ -105,13 +105,12 @@ h3 {
   padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 24px);
 }
 .header {
-  --header-height: 82px;
+  --header-height: 78px;
   height: calc(var(--header-height) + env(safe-area-inset-top));
-  background: #030f1beb;
-  border-bottom: 1px solid #254050;
-  box-shadow: 0 4px 28px #0005;
-  padding: env(safe-area-inset-top) max(28px, env(safe-area-inset-right)) 0
-    max(28px, env(safe-area-inset-left));
+  padding: env(safe-area-inset-top) max(30px, env(safe-area-inset-right)) 0
+    max(30px, env(safe-area-inset-left));
+  background: #030f1bf0;
+  border-bottom: 1px solid #46677b;
 }
 .header-inner {
   max-width: 1440px;
@@ -120,7 +119,7 @@ h3 {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   margin: auto;
-  gap: 18px;
+  gap: 16px;
 }
 .brand {
   background: none;
@@ -129,7 +128,7 @@ h3 {
   line-height: 0;
 }
 .brand img {
-  width: 220px;
+  width: 247px;
   height: auto;
 }
 .menu-button {
@@ -157,19 +156,15 @@ h3 {
   width: 17px;
 }
 .wallet-pill {
+  position: relative;
   justify-self: end;
-  min-width: 130px;
-  max-width: min(190px, 32vw);
-  height: 42px;
-  padding: 0 15px 0 2px;
-  gap: 7px;
-  background: linear-gradient(110deg, #132944, #0e2438 65%, #17232f);
-  border: 2px ridge #7896a9;
-  border-radius: 9px 6px 9px 6px;
-  box-shadow:
-    inset 0 0 0 3px #031320,
-    0 0 14px #1381d233;
-  font-size: 22px;
+  width: 154px;
+  height: 60px;
+  padding: 0 13px 0 56px;
+  border: 0;
+  border-radius: 0;
+  background: url('/art/lobby/slice-coin-balance-v1-180.webp') center / 100% auto no-repeat;
+  font-size: 23px;
   letter-spacing: -0.6px;
   color: #71d3ff;
   font-variant-numeric: tabular-nums;
@@ -181,113 +176,73 @@ h3 {
   white-space: nowrap;
 }
 .wallet-pill img {
-  width: 48px;
-  height: 48px;
-  margin: -5px 0 -5px -15px;
-  object-fit: contain;
+  display: none;
 }
 .page-content {
-  max-width: 1296px;
+  max-width: 1440px;
   margin: auto;
-  padding: 28px 38px 0;
+  padding: 24px max(4%, env(safe-area-inset-right)) 0 max(4%, env(safe-area-inset-left));
 }
 .lobby-home {
-  animation: page-arrive 0.45s ease both;
+  animation: page-arrive 0.35s ease both;
 }
 .rewards-banner {
   position: relative;
   isolation: isolate;
+  width: 70%;
   max-width: 900px;
-  min-height: 163px;
-  margin: 0 auto 31px;
-  border: 1px solid #7192c1;
-  border-radius: 20px;
-  background:
-    radial-gradient(ellipse at 90% 70%, #0a58ae66, transparent 65%),
-    linear-gradient(113deg, #050e2a, #08234e 48%, #0b4188);
-  box-shadow:
-    inset 0 0 0 3px #01091566,
-    0 9px 20px #0004,
-    0 0 22px #045ba11a;
-}
-.rewards-banner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    119deg,
-    transparent 53%,
-    #348de512 53%,
-    #348de512 54%,
-    transparent 54%
-  );
-  border-radius: inherit;
-  z-index: -1;
-}
-.rewards-banner::after {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 13%;
-  right: 19%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #8cdfff, transparent);
-  box-shadow: 0 0 16px 2px #1684e98c;
+  aspect-ratio: 5.25;
+  margin: 0 auto 24px;
+  background: url('/art/lobby/slice-reward-panel-v1-758.webp') center / 100% 100% no-repeat;
 }
 .rewards-copy {
   position: relative;
-  padding: 23px 27px;
+  padding: 2.6% 4.4%;
   z-index: 1;
 }
 .rewards-title {
-  font-size: clamp(24px, 3vw, 32px);
+  font-size: clamp(20px, 2.3vw, 32px);
   line-height: 1;
-  font-weight: 800;
-  letter-spacing: -1.3px;
-  margin-bottom: 9px;
+  font-weight: 600;
+  letter-spacing: -1.1px;
+  margin-bottom: 7px;
 }
 .rewards-title span {
-  color: #5ebeea;
+  color: #54b8e9;
   font-weight: 500;
 }
 .rewards-description {
-  font-size: 13px;
-  margin-bottom: 16px;
-  color: #ccdeed;
+  font-size: clamp(10px, 1.18vw, 16px);
+  margin-bottom: 11px;
+  letter-spacing: -0.5px;
 }
 .reward-button {
-  min-width: 192px;
-  min-height: 42px;
-  padding: 9px 18px;
-  background: linear-gradient(#123c61, #061a34);
-  border: 1px solid #66b7e8;
-  box-shadow:
-    inset 0 0 0 3px #051128,
-    inset 0 0 12px #207cb255;
-  border-radius: 6px;
-  color: #82d3f6;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  font-size: 15px;
+  width: 28%;
+  min-width: 155px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
-.reward-button span {
-  margin-left: auto;
+.reward-button img {
+  width: 100%;
+  height: auto;
 }
 .rewards-crest {
   position: absolute;
   top: 50%;
-  right: 27px;
-  width: 190px;
+  right: 4.5%;
+  width: 23%;
   height: auto;
   transform: translateY(-50%);
-  filter: drop-shadow(0 8px 8px #0006);
-  animation: crest-arrive 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: crest-arrive 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .banner-glint {
   position: absolute;
   overflow: hidden;
-  inset: 0;
-  border-radius: inherit;
+  inset: 5% 2%;
+  border-radius: 18px;
   pointer-events: none;
 }
 .banner-glint::before {
@@ -299,42 +254,21 @@ h3 {
   transform: translateX(-150%) skewX(-25deg);
   animation: banner-sweep 2s ease 0.6s 1;
 }
-.leaders-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
-  color: #8dabc1;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.8px;
-}
 .small-star {
   color: var(--gold);
   margin-right: 5px;
 }
-.leaders-heading button {
-  border: 0;
-  background: none;
-  padding: 7px 0 7px 14px;
-  color: #78c7e8;
-  font-size: 11px;
-  min-height: 32px;
-  font-weight: 400;
-  letter-spacing: 0.2px;
-}
 .contender-strip {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 230px;
-  width: max-content;
-  max-width: 100%;
-  margin-inline: auto;
-  gap: 13px;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: calc(var(--contender-count) * 257px + (var(--contender-count) - 1) * 18px);
+  gap: 18px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 0 0 10px;
+  padding: 0 0 8px;
+  margin: 0 auto 12px;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
 }
@@ -342,39 +276,38 @@ h3 {
   display: none;
 }
 .contender {
-  --tint: #78e9f4;
-  --rank-frame: url('/art/lobby/player-frame-blue-257.webp');
+  --tint: #ff708c;
+  --rank-frame: url('/art/lobby/player-frame-red-257.webp');
   position: relative;
   min-width: 0;
   display: flex;
   justify-content: initial;
-  gap: 8px;
-  min-height: 80px;
-  padding: 15px 17px;
+  gap: 7px;
+  aspect-ratio: 257 / 93;
+  padding: 12px 14px;
   border: 0;
   border-radius: 0;
   background: var(--rank-frame) center / 100% 100% no-repeat;
   scroll-snap-align: start;
-  animation: card-arrive 0.5s ease both;
-  animation-delay: calc(var(--item-index) * 60ms);
+  animation: card-arrive 0.45s ease both;
+  animation-delay: calc(var(--item-index) * 50ms);
 }
 .contender-1 {
-  --tint: #ff708c;
-  --rank-frame: url('/art/lobby/player-frame-red-257.webp');
+  --tint: #78e9f4;
+  --rank-frame: url('/art/lobby/player-frame-blue-257.webp');
 }
 .contender-2 {
   --tint: #de7ff0;
   --rank-frame: url('/art/lobby/player-frame-purple-257.webp');
 }
 .contender-avatar {
-  width: 35px;
-  height: 35px;
-  flex: 0 0 35px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   border-radius: 50%;
   background: var(--tint);
-  box-shadow: 0 0 14px #0004;
   color: #172329;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   display: grid;
   place-items: center;
@@ -392,139 +325,76 @@ h3 {
   text-overflow: ellipsis;
 }
 .contender-name strong {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.5px;
 }
 .contender-name small {
-  font-size: 11px;
+  font-size: 12px;
   color: #b8bac1;
   font-weight: 400;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 .contender-score {
   color: var(--tint);
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
-  align-self: flex-start;
-  margin-top: 8px;
 }
 .contender-score > span:first-child {
   color: var(--gold);
 }
 .contenders-empty {
-  min-height: 80px;
-  padding: 20px;
+  min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 12px;
+  margin-bottom: 20px;
   gap: 6px;
-  border: 1px solid #244460;
-  border-radius: 10px;
-  background: #0717288c;
   color: #adc4d5;
   font-size: 13px;
 }
-.arena-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin: 19px auto 18px;
-  max-width: 960px;
-  gap: 15px;
-}
-.eyebrow {
-  display: block;
-  font-size: 9px;
-  font-weight: 700;
-  color: #76a0b9;
-  letter-spacing: 2.2px;
-  margin-bottom: 6px;
-}
-.arena-heading h2 {
-  font-size: 29px;
-  margin-bottom: 0;
-  font-weight: 700;
-  letter-spacing: -1px;
-}
-.arena-heading h2 > span {
-  color: #55d5d4;
-}
-.arena-status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding-bottom: 3px;
-  color: #9cb6c5;
-  font-size: 11px;
-  white-space: nowrap;
-}
-.online-dot,
-.offline-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-  background: #4be8ae;
-  box-shadow: 0 0 8px #4be8ae77;
-}
-.offline-dot {
-  background: #efbf64;
-  box-shadow: none;
-}
 .game-grid {
-  max-width: 960px;
+  width: 100%;
+  max-width: 800px;
   margin: auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 26px;
+  gap: 20px;
 }
 .game-card {
   --game-accent: #54e6a4;
+  container-type: inline-size;
   position: relative;
   min-width: 0;
-  background: radial-gradient(ellipse at 55% 120%, #08745055, transparent 65%), #031725;
-  border: 1px solid #296681;
-  border-radius: 18px;
-  box-shadow:
-    inset 0 0 0 2px #142e4166,
-    0 10px 18px #0005;
-  animation: card-arrive 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  animation-delay: calc(80ms + var(--item-index) * 90ms);
+  aspect-ratio: 391 / 338;
+  border-radius: 7%;
+  background: transparent;
+  animation: card-arrive 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(50ms + var(--item-index) * 70ms);
   transition:
     transform 0.25s ease,
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
+    filter 0.25s ease;
 }
-.game-card::before {
-  content: '';
-  position: absolute;
-  height: 1px;
-  left: 10%;
-  right: 10%;
-  top: -1px;
-  background: linear-gradient(90deg, transparent, #7dcce8, transparent);
-  z-index: 2;
-}
-.rps-card {
-  --game-accent: #c3a1ff;
-  background: radial-gradient(ellipse at 55% 120%, #7334b755, transparent 65%), #091429;
-  border-color: #435a88;
-}
-.game-art {
-  position: relative;
-  aspect-ratio: 1.68;
-  overflow: hidden;
-  border-radius: 17px 17px 0 0;
-  background: #062441;
-}
-.game-art::after {
+/* Original frame and empty footer stay separate from responsive illustrations. */
+.game-card::after {
   content: '';
   position: absolute;
   inset: 0;
+  background: url('/art/lobby/slice-card-shell-v1-391.webp') center / 100% 100% no-repeat;
   pointer-events: none;
-  background: linear-gradient(180deg, #011a3244, transparent 36%, transparent 75%, #041723aa);
-  box-shadow: inset 0 0 0 2px #4791b41a;
+  z-index: 1;
+}
+.rps-card {
+  --game-accent: #c3a1ff;
+}
+.game-art {
+  position: absolute;
+  inset: 1% 1% auto;
+  height: 69.4%;
+  overflow: hidden;
+  border-radius: 6% 6% 0 0;
+  background: #062441;
 }
 .game-art picture,
 .game-art img {
@@ -536,128 +406,67 @@ h3 {
 .game-art img {
   transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-.game-badge {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 1;
-  border: 1px solid #9cd4e335;
-  border-radius: 4px;
-  padding: 6px 8px;
-  background: #011526b8;
-  color: #e1f8ff;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-.game-badge > span {
-  color: var(--gold);
-  margin-right: 3px;
-}
-.game-mode {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-  z-index: 1;
-  font-size: 15px;
-  font-weight: 700;
-  text-shadow: 0 2px 4px #000;
-}
-.game-mode span {
-  font-size: 10px;
-  font-style: italic;
-  color: #d6e3ec;
-}
 .game-card-body {
-  padding: 17px 20px 20px;
-  border-top: 1px solid #28959e42;
-}
-.game-title-row {
-  display: flex;
-  justify-content: space-between;
+  position: absolute;
+  inset: auto 4% 3.5%;
+  height: 24%;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 43%;
   align-items: center;
-  gap: 10px;
+  gap: 3%;
 }
-.game-title-row h3 {
+.game-card-details {
+  min-width: 0;
+}
+.game-card-details h3 {
   color: var(--game-accent);
-  font-size: 24px;
-  letter-spacing: -0.7px;
-  font-weight: 600;
-  margin: 0;
+  font-size: clamp(11px, 6.9cqw, 25px);
+  line-height: 1.12;
+  letter-spacing: -0.65px;
+  font-weight: 500;
+  margin: 0 0 4px;
 }
-.card-arrow {
-  color: #5d8795;
-  font-size: 21px;
-}
-.game-description {
-  font-size: 12px;
-  color: #a1b8c8;
-  margin: 7px 0 18px;
-  line-height: 1.4;
-}
-.game-card-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.rps-card .game-card-details h3 {
+  font-size: clamp(11px, 5.1cqw, 21px);
 }
 .game-economy {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
-}
-.game-economy img {
-  width: 29px;
-  height: 29px;
-  object-fit: contain;
-}
-.game-economy strong {
-  display: block;
-  font-size: 17px;
-  font-weight: 500;
+  font-size: clamp(11px, 5.1cqw, 20px);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.game-economy strong span {
-  font-size: 11px;
-  color: #a1b8c8;
+.game-economy img {
+  width: 8cqw;
+  height: 8cqw;
+  max-width: 32px;
+  max-height: 32px;
+  object-fit: contain;
 }
-.game-economy small {
-  display: block;
-  font-size: 10px;
-  color: #91c5b3;
-  margin-top: 4px;
-  white-space: nowrap;
-}
-.rps-card .game-economy small {
-  color: #b5a8d1;
+.entry-label {
+  font-size: 0.7em;
+  color: #b8ccd4;
 }
 .play-button {
   position: relative;
-  min-width: 110px;
+  width: 100%;
+  min-width: 44px;
   min-height: 44px;
-  padding: 8px 17px;
-  background: linear-gradient(#137c50aa, #052d24 55%, #155139);
-  border: 3px ridge #889e9b;
-  box-shadow:
-    inset 0 0 0 2px #071d20,
-    0 0 0 2px #152e30,
-    0 0 14px #4cc5991f;
-  border-radius: 12px 5px 12px 5px;
-  font-size: 18px;
-  color: #effff4;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
-.rps-card .play-button {
-  background: linear-gradient(#6c4b91, #211534 55%, #3e2d5d);
-}
-.play-button > span {
-  font-size: 12px;
-  opacity: 0.8;
+.play-button img {
+  width: 100%;
+  height: auto;
 }
 .card-underglow {
   position: absolute;
-  bottom: -13px;
+  bottom: -12px;
   left: 20%;
   right: 20%;
   height: 14px;
@@ -666,28 +475,6 @@ h3 {
 }
 .rps-card .card-underglow {
   background: radial-gradient(ellipse, #a964ec39, transparent 70%);
-}
-.lobby-footer {
-  text-align: center;
-  padding: 27px 10px 4px;
-  color: #86a1b2;
-}
-.footer-mark {
-  color: #37637e;
-  font-size: 13px;
-}
-.lobby-footer p {
-  margin: 8px 0 6px;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-}
-.lobby-footer strong {
-  font-weight: 400;
-  color: #aec5d3;
-}
-.lobby-footer > span:last-child {
-  font-size: 10px;
-  color: #718997;
 }
 .connection-notice {
   display: flex;
@@ -707,17 +494,16 @@ h3 {
   white-space: nowrap;
 }
 .game-skeleton {
-  height: 360px;
   animation: skeleton-pulse 1.5s ease-in-out infinite alternate;
 }
 .skeleton-art {
-  height: 65%;
+  height: 69%;
   border-radius: 16px 16px 0 0;
   background: linear-gradient(120deg, #0c2b45, #16436055);
 }
 .skeleton-line {
-  margin: 20px;
-  height: 14px;
+  margin: 12px;
+  height: 10px;
   width: 50%;
   background: #153343;
   border-radius: 4px;
@@ -726,6 +512,7 @@ h3 {
   width: 30%;
 }
 .bottom-nav {
+  --battle-width: 194px;
   position: fixed;
   z-index: 20;
   bottom: 0;
@@ -733,74 +520,48 @@ h3 {
   right: 0;
   height: calc(var(--nav-height) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: linear-gradient(transparent 18px, #03101c 19px, #030a11);
   isolation: isolate;
+  background: linear-gradient(transparent 20%, #060c12 20%);
 }
-.bottom-nav::after {
-  content: '';
+.nav-rail {
   position: absolute;
-  bottom: env(safe-area-inset-bottom);
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-top: 1px solid #74899166;
-  border-bottom: 1px solid #1e334066;
+  inset: 0 0 env(safe-area-inset-bottom);
   z-index: -1;
+  display: grid;
+  grid-template-columns: 1fr calc(var(--battle-width) * 2) 1fr;
 }
-.nav-rail::before,
-.nav-rail::after {
-  content: '';
-  position: absolute;
-  top: 17px;
-  bottom: 3px;
-  width: calc(50% - 70px);
-  border-top: 2px ridge #b2e3f2;
-  background:
-    repeating-linear-gradient(0deg, #ffffff02, #ffffff02 1px, transparent 1px, transparent 3px),
-    linear-gradient(#28343c, #111820 24%, #080d12 80%);
-  box-shadow:
-    0 -4px 12px #25b9ff20,
-    inset 0 2px 0 #526673;
-  z-index: -1;
+.nav-rail > span {
+  background: url('/art/lobby/slice-dock-center-v1-420.webp') center / 100% 100% no-repeat;
 }
-.nav-rail::before {
-  left: 0;
-  border-radius: 0 48px 0 0;
-  transform: skewX(28deg);
-  transform-origin: bottom;
+.nav-rail > span:first-child {
+  background-image: url('/art/lobby/slice-dock-left-v1-240.webp');
 }
-.nav-rail::after {
-  right: 0;
-  border-radius: 48px 0 0 0;
-  transform: skewX(-28deg);
-  transform-origin: bottom;
-  border-top-color: #dc9899;
-  box-shadow:
-    0 -4px 12px #ff515520,
-    inset 0 2px 0 #926570;
+.nav-rail > span:last-child {
+  background-image: url('/art/lobby/slice-dock-right-v1-240.webp');
 }
 .nav-inner {
-  max-width: 1100px;
+  max-width: 1400px;
   height: 100%;
   margin: auto;
   display: grid;
-  grid-template-columns: 1fr 1fr 180px 1fr 1fr;
+  grid-template-columns: 1fr 1fr var(--battle-width) 1fr 1fr;
   grid-template-rows: minmax(0, 1fr);
   align-items: end;
-  padding: 0 15px 9px;
+  padding: 0 5% 13px;
 }
 .nav-item {
+  position: relative;
   min-width: 0;
   width: 100%;
-  height: 79px;
+  height: 74px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 7px;
-  padding: 6px 2px;
+  gap: 6px;
+  padding: 4px 0;
   background: none;
   border: 0;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 400;
   color: #76cfe9;
   border-radius: 3px;
@@ -813,8 +574,8 @@ h3 {
   position: relative;
 }
 .nav-icon img {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
   transition:
     transform 0.25s ease,
@@ -824,51 +585,27 @@ h3 {
   color: #fff;
   text-shadow: 0 0 12px #74dfff80;
 }
-.nav-item[aria-current='page']:not(.nav-battle)::after {
-  content: '';
-  width: 15px;
-  height: 2px;
-  margin-top: -4px;
-  background: currentColor;
-  position: absolute;
-  bottom: 4px;
-}
 .nav-battle {
-  position: relative;
   isolation: isolate;
-  height: 126px;
-  padding-bottom: 1px;
+  height: calc(var(--battle-width) * 0.76);
+  padding-bottom: 8px;
   gap: 0;
   color: #e7effb;
 }
 .nav-battle::before {
   content: '';
   position: absolute;
-  bottom: -1px;
-  top: 22px;
-  width: 148px;
+  inset: 0;
+  background: url('/art/lobby/slice-battle-base-v1-231.webp') center bottom / 100% auto no-repeat;
   z-index: -1;
-  clip-path: polygon(21% 0, 79% 0, 100% 54%, 83% 100%, 17% 100%, 0 54%);
-  background: linear-gradient(135deg, #a5efff, #1c89db 25%, #020c1e 40%, #122f72 75%, #83d8ff);
-}
-.nav-battle::after {
-  content: '';
-  position: absolute;
-  top: 26px;
-  bottom: 3px;
-  width: 140px;
-  z-index: -1;
-  clip-path: polygon(21% 0, 79% 0, 100% 54%, 83% 100%, 17% 100%, 0 54%);
-  background: radial-gradient(ellipse at 50% 0, #0d65a2, #03132e 75%);
 }
 .nav-battle .nav-icon img {
-  width: 99px;
-  height: 99px;
-  margin-bottom: -1px;
-  filter: drop-shadow(0 0 9px #31bbff55);
+  width: calc(var(--battle-width) * 0.64);
+  height: auto;
+  margin-bottom: -2px;
 }
 .nav-battle > span:last-child {
-  margin-bottom: 6px;
+  line-height: 1.1;
 }
 .menu-dialog {
   position: fixed;
@@ -1236,31 +973,18 @@ h3 {
     width: 28px;
   }
   .wallet-pill:hover {
-    box-shadow:
-      inset 0 0 0 3px #031320,
-      0 0 18px #209be84d;
+    filter: brightness(1.12);
   }
-  .reward-button:hover {
-    background: linear-gradient(#195584, #0b2846);
-    box-shadow:
-      inset 0 0 0 3px #061c35,
-      0 0 22px #3295ca26;
+  .reward-button:hover,
+  .play-button:hover {
+    filter: brightness(1.15) drop-shadow(0 0 5px #51c6d244);
   }
   .game-card:hover {
-    transform: translateY(-5px);
-    border-color: #66accb;
-    box-shadow:
-      inset 0 0 0 2px #142e4166,
-      0 18px 30px #0006;
+    transform: translateY(-3px);
+    filter: drop-shadow(0 8px 12px #0005);
   }
   .game-card:hover .game-art img {
-    transform: scale(1.035);
-  }
-  .play-button:hover {
-    box-shadow:
-      inset 0 0 0 2px #071d20,
-      0 0 0 2px #3e716a,
-      0 0 20px #4cc59944;
+    transform: scale(1.025);
   }
   .contender:hover {
     transform: translateY(-2px);
@@ -1322,27 +1046,75 @@ h3 {
     transform: translateX(0);
   }
 }
-@media (min-width: 1600px) {
+@media (min-width: 1100px) {
   .page-content {
-    padding-top: 38px;
+    padding-top: 10px;
   }
   .rewards-banner {
-    margin-bottom: 37px;
+    margin-bottom: 12px;
   }
-  .arena-heading {
-    margin-top: 24px;
+  .game-grid {
+    grid-template-columns: repeat(var(--game-columns), minmax(0, 1fr));
+    max-width: calc(var(--game-columns) * 312px);
+    gap: 26px;
+  }
+}
+@media (min-width: 701px) and (max-width: 1099px) {
+  :root {
+    --nav-height: 149px;
+  }
+  .bottom-nav {
+    --battle-width: 231px;
+  }
+  .nav-inner {
+    padding-inline: 0;
+  }
+  .nav-item {
+    font-size: 20px;
+  }
+  .header {
+    --header-height: 95px;
+  }
+  .page-content {
+    padding-top: 28px;
+    padding-inline: 6%;
+  }
+  .rewards-banner {
+    width: 96%;
+    aspect-ratio: 758 / 205;
+    margin-bottom: 30px;
+  }
+  .rewards-copy {
+    padding-top: 3.8%;
+    padding-inline: 6.3%;
+  }
+  .rewards-title {
+    font-size: clamp(27px, 3.7vw, 35px);
+  }
+  .rewards-description {
+    font-size: clamp(14px, 2vw, 18px);
+    margin-bottom: 17px;
+  }
+  .reward-button {
+    width: 37%;
+  }
+  .rewards-crest {
+    width: 29.3%;
+  }
+  .contender-strip {
+    width: 100%;
+    grid-auto-columns: calc((100% - 32px) / 3);
+    gap: 16px;
+    margin-bottom: 58px;
+  }
+  .game-grid {
+    max-width: none;
+  }
+  .contender-name strong {
+    font-size: 15px;
   }
 }
 @media (max-width: 1050px) {
-  .contender-strip {
-    grid-auto-columns: 235px;
-  }
-  .game-title-row h3 {
-    font-size: 21px;
-  }
-  .page-content {
-    padding-inline: 25px;
-  }
   .play-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1352,180 +1124,149 @@ h3 {
 }
 @media (max-width: 700px) {
   :root {
-    --nav-height: 86px;
+    --nav-height: 78px;
   }
   .header {
-    --header-height: 69px;
-    padding-left: max(18px, env(safe-area-inset-left));
-    padding-right: max(18px, env(safe-area-inset-right));
+    --header-height: 62px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
   }
   .header-inner {
-    gap: 13px;
-    grid-template-columns: 42px minmax(0, 1fr) auto;
-  }
-  .brand {
-    justify-self: center;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px;
   }
   .brand img {
-    width: 177px;
+    width: clamp(120px, 36vw, 190px);
   }
-  .wallet-pill {
-    min-width: 103px;
-    font-size: 18px;
-    height: 35px;
-    min-height: 35px;
-    padding-right: 9px;
-  }
-  .wallet-pill img {
-    width: 40px;
-    height: 40px;
-    margin-left: -13px;
+  .menu-button {
+    min-width: 36px;
   }
   .menu-button span {
     height: 4px;
-    width: 25px;
+    width: 24px;
   }
   .menu-button span:nth-child(2) {
-    width: 20px;
+    width: 19px;
   }
   .menu-button span:last-child {
-    width: 15px;
+    width: 14px;
+  }
+  .wallet-pill {
+    width: clamp(82px, 23vw, 126px);
+    height: 44px;
+    padding: 0 8px 0 32%;
+    font-size: clamp(13px, 3.8vw, 18px);
   }
   .page-content {
-    padding: 25px 18px 0;
+    padding-top: 24px;
+    padding-inline: max(4.5%, env(safe-area-inset-left)) max(4.5%, env(safe-area-inset-right));
   }
   .rewards-banner {
-    min-height: 150px;
-    margin-bottom: 24px;
-    border-radius: 15px;
+    width: 100%;
+    min-height: 108px;
+    aspect-ratio: 3.55;
+    margin-bottom: 27px;
   }
   .rewards-copy {
-    padding: 23px 18px;
+    padding: 5.4% 5%;
   }
   .rewards-title {
-    font-size: 27px;
-    letter-spacing: -1.2px;
+    font-size: clamp(17px, 4.9vw, 27px);
+    letter-spacing: -0.9px;
+    margin-bottom: 5px;
   }
   .rewards-description {
-    max-width: 235px;
-    font-size: 11px;
-    margin-bottom: 14px;
+    font-size: clamp(8px, 2.42vw, 13px);
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
   }
   .reward-button {
-    min-width: 165px;
-    min-height: 40px;
-    font-size: 13px;
-    padding: 8px 14px;
+    width: 42%;
+    min-width: 117px;
   }
   .rewards-crest {
-    right: 8px;
-    width: 160px;
+    width: 29%;
+    right: 2.7%;
   }
-  .game-grid {
-    gap: 14px;
+  .contender-strip {
+    grid-auto-columns: clamp(156px, 43vw, 235px);
+    gap: 12px;
+    margin-bottom: 27px;
   }
-  .game-card {
-    border-radius: 12px;
-  }
-  .game-art {
-    border-radius: 11px 11px 0 0;
-    aspect-ratio: 1.35;
-  }
-  .game-art img {
-    object-position: center;
-  }
-  .game-badge {
-    font-size: 7px;
-    top: 8px;
-    left: 8px;
-    padding: 4px 5px;
-    letter-spacing: 0.4px;
-  }
-  .game-mode {
-    display: none;
-  }
-  .game-card-body {
-    padding: 12px 12px 14px;
-  }
-  .game-title-row h3 {
-    font-size: 19px;
-    letter-spacing: -0.6px;
-  }
-  .game-description {
-    font-size: 10px;
-    margin: 7px 0 14px;
-    min-height: 28px;
-  }
-  .card-arrow {
-    display: none;
-  }
-  .game-economy img {
-    width: 24px;
-    height: 24px;
-  }
-  .game-economy {
-    gap: 4px;
-  }
-  .game-economy strong {
-    font-size: 14px;
-  }
-  .game-economy strong span {
-    font-size: 9px;
-  }
-  .game-economy small {
-    font-size: 9px;
-  }
-  .game-card-bottom {
-    flex-wrap: wrap;
-    gap: 13px;
-  }
-  .play-button {
-    flex: 1;
-    min-width: 80px;
-    font-size: 16px;
-    padding: 6px 13px;
-  }
-  .nav-inner {
-    padding: 0 8px 5px;
-    grid-template-columns: 1fr 1fr 108px 1fr 1fr;
-  }
-  .nav-item {
-    height: 63px;
-    font-size: 11px;
+  .contender {
+    padding: 8px 11px;
     gap: 5px;
   }
+  .contender-avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+    font-size: 11px;
+  }
+  .contender-name strong {
+    font-size: 11px;
+    letter-spacing: -0.3px;
+  }
+  .contender-name small {
+    font-size: 9px;
+    margin-top: 2px;
+  }
+  .contender-score {
+    font-size: 11px;
+  }
+  .game-grid {
+    gap: 12px;
+  }
+  .game-card-body {
+    inset: auto 4% 2.5%;
+    height: 26%;
+    display: block;
+  }
+  .game-card-details h3,
+  .rps-card .game-card-details h3 {
+    font-size: clamp(11px, 7.1cqw, 20px);
+    letter-spacing: -0.3px;
+    line-height: 1.05;
+    margin-bottom: 3px;
+    white-space: nowrap;
+  }
+  .game-economy {
+    font-size: clamp(11px, 7cqw, 18px);
+    gap: 3px;
+  }
+  .game-economy img {
+    width: 9cqw;
+    height: 9cqw;
+  }
+  .entry-label {
+    display: none;
+  }
+  .play-button {
+    position: absolute;
+    right: 0;
+    bottom: -5px;
+    width: 43%;
+  }
+  .bottom-nav {
+    --battle-width: clamp(92px, 26vw, 150px);
+  }
+  .nav-inner {
+    padding: 0 1.5% 6px;
+  }
+  .nav-item {
+    height: 60px;
+    font-size: clamp(9px, 2.35vw, 13px);
+    gap: 4px;
+  }
   .nav-icon img {
-    width: 27px;
-    height: 27px;
+    width: 26px;
+    height: 26px;
   }
   .nav-battle {
-    height: 103px;
-  }
-  .nav-battle .nav-icon img {
-    width: 78px;
-    height: 78px;
-    margin-bottom: 0;
-  }
-  .nav-battle::before {
-    width: 107px;
-    top: 23px;
-    bottom: -1px;
-  }
-  .nav-battle::after {
-    width: 101px;
-    top: 27px;
-    bottom: 3px;
-  }
-  .nav-rail::before,
-  .nav-rail::after {
-    width: calc(50% - 49px);
-    top: 14px;
-  }
-  .nav-battle > span:last-child {
-    margin-bottom: 3px;
-  }
-  .lobby-footer {
-    padding-top: 24px;
+    height: calc(var(--battle-width) * 0.8);
+    padding-bottom: 6px;
+    font-size: clamp(11px, 3vw, 15px);
+    gap: 0;
   }
   .grid-2 {
     grid-template-columns: 1fr;
@@ -1552,7 +1293,7 @@ h3 {
   }
   .reward-summary span {
     letter-spacing: 0.7px;
-    font-size: 9px;
+    font-size: 10px;
   }
   .play-layout {
     padding: 12px 10px 0;
@@ -1571,422 +1312,66 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 480px) {
-  .header {
-    padding-left: max(14px, env(safe-area-inset-left));
-    padding-right: max(14px, env(safe-area-inset-right));
-    --header-height: 61px;
-  }
+@media (max-width: 359px) {
   .header-inner {
-    grid-template-columns: 34px minmax(0, 1fr) auto;
-    gap: 12px;
-  }
-  .brand img {
-    width: 145px;
-  }
-  .wallet-pill {
-    font-size: 15px;
-    min-width: 88px;
-    height: 32px;
-    min-height: 32px;
-  }
-  .wallet-pill img {
-    width: 35px;
-    height: 35px;
-  }
-  .page-content {
-    padding: 24px 12px 0;
-  }
-  .rewards-banner {
-    min-height: 144px;
-    margin-bottom: 19px;
-  }
-  .rewards-copy {
-    padding: 21px 15px;
-  }
-  .rewards-title {
-    font-size: 23px;
-  }
-  .rewards-description {
-    max-width: 170px;
-    font-size: 10px;
-    line-height: 1.5;
-    margin-bottom: 11px;
-  }
-  .rewards-crest {
-    width: 129px;
-    right: -3px;
-  }
-  .rewards-copy .reward-button {
-    min-width: 149px;
-    font-size: 11px;
-    min-height: 38px;
-  }
-  .leaders-heading {
-    font-size: 8px;
-    letter-spacing: 1.3px;
-  }
-  .leaders-heading button {
-    font-size: 10px;
-  }
-  .contender-strip {
-    gap: 10px;
-    grid-auto-columns: 208px;
-  }
-  .contender {
-    padding: 13px 16px;
-    min-height: 75px;
     gap: 6px;
   }
-  .contender-avatar {
-    width: 31px;
-    height: 31px;
-    flex-basis: 31px;
-    font-size: 12px;
-  }
-  .contender-name strong {
-    font-size: 13px;
-  }
-  .contender-name small {
-    font-size: 10px;
-  }
-  .arena-heading {
-    margin-top: 15px;
-    margin-bottom: 14px;
-  }
-  .arena-heading h2 {
-    font-size: 24px;
-  }
-  .arena-status {
-    font-size: 9px;
-    gap: 5px;
-  }
-  .eyebrow {
-    font-size: 8px;
-    letter-spacing: 1.6px;
-  }
-  .game-grid {
-    gap: 11px;
-  }
-  .game-title-row h3 {
-    font-size: 17px;
-    min-height: 38px;
-    display: flex;
-    align-items: center;
-    line-height: 1.15;
-  }
-  .game-card-body {
-    padding: 9px 10px 12px;
-  }
-  .game-description {
-    display: none;
-  }
-  .game-card-bottom {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 11px;
-    margin-top: 9px;
-  }
-  .play-button {
-    width: 100%;
-    min-height: 42px;
-  }
-  .game-economy strong {
-    font-size: 14px;
-  }
-  .game-art {
-    aspect-ratio: 1.25;
-  }
-  .game-badge {
-    left: 5px;
-    right: auto;
-    top: 6px;
-    padding: 4px;
-    font-size: 6px;
-    letter-spacing: 0.4px;
-  }
-  .nav-inner {
-    grid-template-columns: 1fr 1fr 91px 1fr 1fr;
-    padding-inline: 3px;
-  }
-  .nav-item {
-    font-size: 9px;
-  }
-  .nav-battle {
-    font-size: 11px;
-  }
-  .nav-battle::before {
-    width: 92px;
-  }
-  .nav-battle::after {
-    width: 86px;
-  }
-  .nav-rail::before,
-  .nav-rail::after {
-    width: calc(50% - 42px);
-  }
-  .lobby-footer > span:last-child {
-    font-size: 9px;
-  }
-  .connection-notice {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
-}
-@media (max-width: 359px) {
-  .header {
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
-  }
-  .header-inner {
-    gap: 10px;
-    grid-template-columns: 27px minmax(0, 1fr) auto;
-  }
   .brand img {
-    width: 123px;
+    width: 117px;
   }
   .wallet-pill {
-    font-size: 13px;
-    min-width: 80px;
-  }
-  .wallet-pill img {
-    width: 31px;
-    height: 31px;
-  }
-  .rewards-title {
-    font-size: 20px;
+    width: 81px;
+    font-size: 12px;
   }
   .rewards-copy {
-    padding-left: 12px;
+    padding-top: 7%;
   }
   .rewards-crest {
-    width: 110px;
-    right: -6px;
-  }
-  .rewards-description {
-    max-width: 160px;
+    width: 28%;
+    right: 1.5%;
   }
   .game-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
+    gap: 10px;
   }
-  .game-art {
-    aspect-ratio: 1.68;
+  .game-card-details h3,
+  .rps-card .game-card-details h3 {
+    font-size: 9px;
   }
   .game-card-body {
-    padding: 15px;
-  }
-  .game-title-row h3 {
-    min-height: 0;
-    font-size: 22px;
-  }
-  .game-card-bottom {
-    display: flex;
+    height: 27%;
+    bottom: 1%;
   }
   .play-button {
-    width: auto;
-    flex: 0 1 110px;
-  }
-  .game-badge {
-    top: 10px;
-    left: 10px;
-    font-size: 8px;
-    padding: 5px;
-  }
-  .nav-inner {
-    grid-template-columns: 1fr 1fr 78px 1fr 1fr;
-  }
-  .nav-item {
-    font-size: 8px;
-  }
-  .nav-battle {
-    font-size: 10px;
-  }
-  .nav-battle .nav-icon img {
-    width: 70px;
-    height: 70px;
-  }
-  .nav-battle::before {
-    width: 82px;
-    top: 29px;
-  }
-  .nav-battle::after {
-    width: 76px;
-    top: 33px;
-  }
-  .nav-rail::before,
-  .nav-rail::after {
-    width: calc(50% - 39px);
+    bottom: -7px;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   :root {
-    --nav-height: 67px;
+    --nav-height: 64px;
   }
   .header {
     --header-height: 58px;
   }
-  .nav-battle {
-    height: 78px;
+  .bottom-nav {
+    --battle-width: 102px;
   }
-  .nav-battle .nav-icon img {
-    width: 58px;
-    height: 58px;
+  .nav-inner {
+    padding-bottom: 5px;
   }
   .nav-item {
-    height: 50px;
+    height: 51px;
     font-size: 10px;
   }
   .nav-icon img {
-    width: 22px;
-    height: 22px;
+    width: 23px;
+    height: 23px;
   }
-  .nav-battle::before {
-    top: 18px;
-    width: 88px;
-  }
-  .nav-battle::after {
-    top: 22px;
-    width: 82px;
+  .nav-battle {
+    height: 79px;
+    padding-bottom: 6px;
   }
   .game-frame {
     min-height: 340px;
-  }
-}
-/* Keep both games playable above the dock on landscape laptop displays. */
-@media (min-width: 701px) and (max-height: 1000px) {
-  .header {
-    --header-height: 75px;
-  }
-  .page-content {
-    padding-top: 24px;
-  }
-  .rewards-banner {
-    min-height: 150px;
-    margin-bottom: 22px;
-  }
-  .rewards-copy {
-    padding-block: 18px;
-  }
-  .rewards-crest {
-    width: 174px;
-  }
-  .leaders-heading button {
-    min-height: 24px;
-    padding-block: 3px;
-  }
-  .contender {
-    min-height: 70px;
-    padding-block: 12px;
-  }
-  .arena-heading {
-    margin-top: 12px;
-    margin-bottom: 14px;
-  }
-  .arena-heading .eyebrow {
-    display: none;
-  }
-  .arena-heading h2 {
-    font-size: 27px;
-  }
-  .game-art {
-    aspect-ratio: 2;
-  }
-  .game-card-body {
-    padding: 14px 18px;
-  }
-  .game-description {
-    display: none;
-  }
-  .game-card-bottom {
-    margin-top: 12px;
-  }
-  .lobby-footer {
-    display: none;
-  }
-}
-@media (min-width: 701px) and (max-height: 850px) {
-  :root {
-    --nav-height: 94px;
-  }
-  .header {
-    --header-height: 68px;
-  }
-  .brand img {
-    width: 204px;
-  }
-  .page-content {
-    padding-top: 18px;
-  }
-  .rewards-banner {
-    min-height: 125px;
-    margin-bottom: 16px;
-  }
-  .rewards-copy {
-    padding-block: 14px;
-  }
-  .rewards-title {
-    font-size: 27px;
-    margin-bottom: 7px;
-  }
-  .rewards-description {
-    margin-bottom: 12px;
-    font-size: 12px;
-  }
-  .reward-button {
-    min-height: 38px;
-    font-size: 13px;
-  }
-  .rewards-crest {
-    width: 152px;
-  }
-  .leaders-heading {
-    display: none;
-  }
-  .contender {
-    min-height: 64px;
-    padding-block: 9px;
-  }
-  .arena-heading {
-    margin-block: 10px;
-    max-width: 820px;
-  }
-  .arena-heading h2 {
-    font-size: 25px;
-  }
-  .game-grid {
-    max-width: 820px;
-  }
-  .game-art {
-    aspect-ratio: 2.1;
-  }
-  .game-card-body {
-    padding: 12px 16px;
-  }
-  .game-title-row h3 {
-    font-size: 21px;
-  }
-  .game-card-bottom {
-    margin-top: 10px;
-  }
-  .lobby-footer {
-    display: none;
-  }
-  .footer-mark,
-  .lobby-footer > span:last-child {
-    display: none;
-  }
-  .lobby-footer p {
-    margin: 0;
-    font-size: 10px;
-  }
-  .nav-battle {
-    height: 110px;
-  }
-  .nav-battle .nav-icon img {
-    width: 85px;
-    height: 85px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
