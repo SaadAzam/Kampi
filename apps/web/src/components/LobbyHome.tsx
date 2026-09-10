@@ -185,20 +185,15 @@ export function LobbyHome({
                     </span>
                   </div>
                 </div>
-                <button
-                  className="play-button"
-                  aria-label={`Play ${game.name}`}
-                  onClick={() => onPlay(game)}
-                  disabled={connection === 'offline'}
-                >
-                  <img
-                    src={`${ART}/slice-play-button-v2-157.webp`}
-                    width="157"
-                    height="71"
-                    alt=""
-                  />
-                </button>
               </div>
+              <button
+                className="play-button"
+                aria-label={`Play ${game.name}`}
+                onClick={() => onPlay(game)}
+                disabled={connection === 'offline'}
+              >
+                <img src={`${ART}/slice-play-button-v2-157.webp`} width="157" height="71" alt="" />
+              </button>
               <div className="card-underglow" aria-hidden="true" />
             </article>
           );

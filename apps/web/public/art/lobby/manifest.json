@@ -512,5 +512,70 @@
         "bytes": 5696
       }
     }
+  },
+  {
+    "name": "nav-labeled-edit-v1",
+    "width": 115,
+    "height": 77,
+    "alpha": true,
+    "description": "Original edit icon and reference typography. HTML button supplies accessible label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-labeled-edit-v1-115.webp",
+        "bytes": 2634
+      }
+    }
+  },
+  {
+    "name": "nav-labeled-leaderboards-v1",
+    "width": 115,
+    "height": 77,
+    "alpha": true,
+    "description": "Original leaderboards icon and reference typography. HTML button supplies accessible label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-labeled-leaderboards-v1-115.webp",
+        "bytes": 3110
+      }
+    }
+  },
+  {
+    "name": "nav-labeled-battle-v1",
+    "width": 156,
+    "height": 164,
+    "alpha": true,
+    "description": "Original battle icon and reference typography. HTML button supplies accessible label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-labeled-battle-v1-156.webp",
+        "bytes": 15426
+      }
+    }
+  },
+  {
+    "name": "nav-labeled-shop-v1",
+    "width": 115,
+    "height": 77,
+    "alpha": true,
+    "description": "Original shop icon and reference typography. HTML button supplies accessible label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-labeled-shop-v1-115.webp",
+        "bytes": 3128
+      }
+    }
+  },
+  {
+    "name": "nav-labeled-profile-v1",
+    "width": 115,
+    "height": 77,
+    "alpha": true,
+    "description": "Original profile icon and reference typography. HTML button supplies accessible label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-labeled-profile-v1-115.webp",
+        "bytes": 2192
+      }
+    }
   }
 ]

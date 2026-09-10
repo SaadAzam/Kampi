@@ -28,6 +28,14 @@ const outputDirectory = path.join(repository, 'apps/web/public/art/lobby');
 // bevels are not clipped. Both the original full penalty card and independent
 // illustration/footer variants are available for responsive source-faithful UI.
 const assets = [
+  ...['edit', 'leaderboards', 'battle', 'shop', 'profile'].map((icon) => ({
+    name: `nav-labeled-${icon}-v1`,
+    source: `bottom/with text/${icon}.png`,
+    widths: [icon === 'battle' ? 156 : 115],
+    quality: 95,
+    formats: ['webp'],
+    description: `Original ${icon} icon and reference typography; accessible label supplied by HTML button.`,
+  })),
   {
     name: 'penalty-action',
     source: 'game box/penalty duel.png',

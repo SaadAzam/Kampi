@@ -7,12 +7,12 @@ The web lobby now follows the supplied navy, gold and metallic arena artwork, wi
 - Source-faithful logo, reward panel/button/crest, balance frame, player frames, card border/footer, Play button, navigation icons and Battle base. The dock is split into three original-art slices so the central curves retain their proportions on wide screens.
 - Original supplied goalkeeper illustration at every size, plus the RPS illustration. The earlier generated penalty variants remain available as assets but are no longer loaded by the lobby.
 - Responsive game artwork with AVIF sources, WebP fallbacks and explicit dimensions/aspect ratios. The browser downloads only the selected candidate.
-- Finite entrance animations and banner shimmer, desktop card/illustration hover movement, button press feedback, animated menu entry and navigation highlights. Reduced-motion preferences disable transitions and animations.
-- Five working navigation destinations: history, leaderboards, battle, shop and profile. The native menu includes all destinations and rewards, traps keyboard focus, closes on Escape, and restores focus. View navigation focuses the new heading.
-- Two-column mobile cards retain the original 391:338 proportions. Play occupies less than 45% of each card, sits beside the chip amount and retains a 44×44 minimum touch target. Player cards scroll horizontally on small screens. Desktop cards stay compact, and the dock respects safe areas.
-- The supplied portrait and wide references determine spacing and proportions. Extra section headings, promotional overlays, arrows and footer copy from the first revision were removed. Only the two actual catalog games are shown; mockup duplicates are not rendered.
+- A soft CSS glow behind each card breathes through opacity and transform (no extra image or JavaScript animation). Reduced motion leaves it static. Finite entrance animations and banner shimmer, desktop card/illustration hover movement, button press feedback, animated menu entry and navigation highlights. Reduced-motion preferences disable transitions and animations.
+- Five reference navigation labels: Edit, Leaderboards, Battle, Shop and Profile. Edit and Profile open the existing account view; previous matches remain available in the menu. The original icon-and-label slices preserve the reference typography and include accessible HTML button names. The native menu includes all destinations and rewards, traps keyboard focus, closes on Escape, and restores focus. View navigation focuses the new heading.
+- Two-column mobile cards retain the original 391:338 proportions. Play uses the reference slice coordinates: 157×71 artwork at (216, 250) inside the 391×338 card. Its center stays at 75.32% horizontally and 84.47% vertically on every viewport, beside the chip amount. A centered 44×44 minimum touch target does not move the visible artwork. Long game titles wrap in the left column. Player cards scroll horizontally on small screens. Desktop cards stay compact, and the dock respects safe areas.
+- The supplied portrait and wide references determine spacing and proportions. Extra section headings, promotional overlays, arrows and footer copy from the first revision were removed. Reward copy and its button use reference coordinates inside the panel, preventing the button from flowing into the bottom border at intermediate widths. Only the two actual catalog games are shown; mockup duplicates are not rendered.
 
-Rewards show actual earned XP, levels and wins. The shop is clearly marked coming soon because there is no purchasing endpoint. History occupies the reference's Edit slot because profile editing is not implemented. Login, registration and guest-account claiming remain available in Profile.
+Rewards show actual earned XP, levels and wins. The shop is clearly marked coming soon because there is no purchasing endpoint. Edit opens the existing account controls, including guest-account claiming; it does not add an unimplemented profile-editing API. Login, registration and guest-account claiming remain available in Profile.
 
 ## Loading and connection handling
 
@@ -28,11 +28,11 @@ Measured compressed artwork bodies from cold Chromium browser contexts against t
 
 | Browser viewport | Artwork |
 | --- | ---: |
-| 390 × 844, 1× density | 144,941 bytes |
-| 390 × 844, 3× density with touch | 160,711 bytes |
-| 1440 × 950, 1× density | 145,381 bytes |
+| 390 × 844, 1× density | 154,809 bytes |
+| 390 × 844, 3× density with touch | 170,579 bytes |
+| 1440 × 950, 1× density | 155,249 bytes |
 
-The same run transferred approximately 126 KB of compressed JavaScript and 5.9 KB of compressed CSS. These are fixture-backed local measurements, not a promise of a particular production loading time. API latency, network conditions, cache state and device speed still determine real loading time.
+The same run transferred approximately 126 KB of compressed JavaScript and 6.0 KB of compressed CSS. These are fixture-backed local measurements, not a promise of a particular production loading time. API latency, network conditions, cache state and device speed still determine real loading time.
 
 Final delivery assets are in `apps/web/public/art/lobby/`. `manifest.json` records sizes for converted source slices. Generated-art prompts and compression settings are recorded in [RPS artwork](rps-art-prompt.md) and [penalty artwork](penalty-art-prompt.md); both used the built-in image generation tool. Large source PNGs and personal source-directory paths are not included in the build.
 
@@ -49,7 +49,7 @@ The optional preparation script uses Sharp from the existing Next image pipeline
 - Web production build, lint, TypeScript checks and existing web unit test passed.
 - Sixteen browser tests passed in Chromium and sixteen in WebKit.
 - Viewports: 320 × 900, 390 × 844, 768 × 900, 844 × 390 landscape, the original 900 × 1440 and 1344 × 752 reference sizes, 1440 × 950 and 1920 × 1080; an additional mobile H5 case uses touch and 3× pixel density.
-- Checks cover reference card aspect ratio, two mobile cards on one row, compact right-aligned Play controls with minimum touch targets, horizontal overflow, image loading, dock-label visibility, desktop Play-button clearance, rewards, history, profile, rankings, keyboard focus, reduced motion, both game iframe handshakes, full-page game restoration, catalog failures, temporary player failures and delayed-login races.
+- Checks cover reference card aspect ratio, two mobile cards on one row, compact right-aligned Play controls with minimum touch targets, horizontal overflow, image loading, dock-label artwork visibility, reward-button clearance and subtitle separation, desktop Play-button clearance, rewards, history, profile, rankings, keyboard focus, reduced motion, both game iframe handshakes, full-page game restoration, catalog failures, temporary player failures and delayed-login races.
 - Interactive checks against the real local backend confirmed balance/rankings display, rewards/shop navigation, penalty launch and restoration of the same guest after a full refresh.
 
 Browser tests isolate backend and game responses; they do not create production accounts or matches. WebKit emulation is useful Safari-engine coverage, not a claim of testing every physical iPhone.

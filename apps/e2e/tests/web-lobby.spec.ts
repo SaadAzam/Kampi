@@ -294,7 +294,7 @@ for (const { width, height } of [
     await openLobby(page);
     await expect(page.getByRole('button', { name: 'Kampi home', exact: true })).toBeVisible();
     const navigation = page.getByRole('navigation', { name: 'Primary navigation' });
-    for (const name of ['Battle', 'Leaderboards', 'Shop', 'Profile', 'History']) {
+    for (const name of ['Battle', 'Leaderboards', 'Shop', 'Profile', 'Edit']) {
       await expect(navigation.getByRole('button', { name, exact: true })).toBeVisible();
     }
     await expect
@@ -342,8 +342,13 @@ for (const { width, height } of [
           name: card.querySelector('h3')?.textContent ?? 'Game',
           ratio: cardBounds.width / cardBounds.height,
           playWidthRatio: playBounds.width / cardBounds.width,
-          playWidth: playBounds.width,
-          playHeight: playBounds.height,
+          artworkCenterX:
+            (graphicBounds.left + graphicBounds.width / 2 - cardBounds.left) / cardBounds.width,
+          artworkCenterY:
+            (graphicBounds.top + graphicBounds.height / 2 - cardBounds.top) / cardBounds.height,
+          // DOMRect float precision during entrance transforms can report 43.99997 for 44px.
+          playWidth: Math.round(playBounds.width * 100) / 100,
+          playHeight: Math.round(playBounds.height * 100) / 100,
           playLeft: playBounds.left,
           economyRight,
           graphicFitsFooter:
@@ -362,6 +367,14 @@ for (const { width, height } of [
         1.22,
       );
       expect(card.playWidthRatio, `${card.name} keeps Play compact`).toBeLessThanOrEqual(0.45);
+      expect(
+        card.artworkCenterX,
+        `${card.name} Play matches the reference horizontal anchor`,
+      ).toBeCloseTo(0.7532, 2);
+      expect(
+        card.artworkCenterY,
+        `${card.name} Play matches the reference vertical anchor`,
+      ).toBeCloseTo(0.8447, 2);
       expect(card.playWidth, `${card.name} Play has a usable touch target`).toBeGreaterThanOrEqual(
         44,
       );
@@ -376,9 +389,9 @@ for (const { width, height } of [
         true,
       );
     }
-    const labelBounds = await navigation.locator('button > span:last-child').evaluateAll((labels) =>
+    const labelBounds = await navigation.locator('button .nav-icon img').evaluateAll((labels) =>
       labels.map((label) => ({
-        text: label.textContent,
+        text: label.closest('button')?.getAttribute('aria-label'),
         bottom: label.getBoundingClientRect().bottom,
       })),
     );
@@ -388,6 +401,25 @@ for (const { width, height } of [
         height,
       );
     }
+    const rewardLayout = await page.locator('.rewards-banner').evaluate((banner) => {
+      const bounds = banner.getBoundingClientRect();
+      const graphic = banner.querySelector('.reward-button img')!.getBoundingClientRect();
+      const copy = banner.querySelector('.rewards-description')!.getBoundingClientRect();
+      return {
+        bottom: graphic.bottom,
+        panelBottom: bounds.bottom,
+        top: graphic.top,
+        copyBottom: copy.bottom,
+        widthRatio: graphic.width / bounds.width,
+      };
+    });
+    expect(rewardLayout.bottom, 'Reward art has space above the lower border').toBeLessThan(
+      rewardLayout.panelBottom - 8,
+    );
+    expect(rewardLayout.top, 'Reward art does not overlap the subtitle').toBeGreaterThan(
+      rewardLayout.copyBottom,
+    );
+    expect(rewardLayout.widthRatio).toBeLessThanOrEqual(0.33);
     if (width >= 1100) {
       const rail = await navigation.boundingBox();
       expect(rail).not.toBeNull();
@@ -477,6 +509,9 @@ test('saved player can navigate to real previous matches, rankings and profile',
   await expect(page.getByText('1. Demo Challenger', { exact: true })).toBeVisible();
   await nav.getByRole('button', { name: 'Profile', exact: true }).click();
   await expect(page.getByText('challenger@example.test', { exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Battle', exact: true }).click();
+  await nav.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Your account' })).toBeVisible();
   expect(backend.historyReads).toBeGreaterThan(0);
   expect(backend.guestPosts).toBe(0);
   expect(backend.unexpectedRequests).toEqual([]);
@@ -625,10 +660,10 @@ test('reduced motion disables entrance animations without preventing play', asyn
   await expect
     .poll(() =>
       page
-        .locator('.game-card')
+        .locator('.game-card, .card-underglow')
         .evaluateAll((cards) => cards.map((card) => getComputedStyle(card).animationName)),
     )
-    .toEqual(['none', 'none']);
+    .toEqual(['none', 'none', 'none', 'none']);
   await page.getByRole('button', { name: 'Play Penalty Duel', exact: true }).click();
   await expect(page.frameLocator('#game-frame').getByTestId('session-player')).toHaveText(
     PLAYER_ID,

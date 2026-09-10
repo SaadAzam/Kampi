@@ -147,28 +147,28 @@ export function LobbyNavigation({
       <div className="nav-inner">
         {(
           [
-            ['history', 'History', 'edit'],
-            ['rankings', 'Leaderboards', 'leaderboard'],
+            ['account', 'Edit', 'edit'],
+            ['rankings', 'Leaderboards', 'leaderboards'],
             ['home', 'Battle', 'battle'],
             ['shop', 'Shop', 'shop'],
             ['account', 'Profile', 'profile'],
           ] as const
         ).map(([target, label, icon]) => (
           <button
-            key={target}
+            key={label}
             className={`nav-item ${target === 'home' ? 'nav-battle' : ''}`}
-            aria-current={view === target ? 'page' : undefined}
+            aria-label={label}
+            aria-current={view === target && label !== 'Edit' ? 'page' : undefined}
             onClick={() => onNavigate(target)}
           >
             <span className="nav-icon">
               <img
-                src={`${ART}/nav-${icon}-${target === 'home' ? '156' : '58'}.webp`}
-                width={target === 'home' ? 108 : 36}
-                height={target === 'home' ? 108 : 36}
+                src={`${ART}/nav-labeled-${icon}-v1-${target === 'home' ? '156' : '115'}.webp`}
+                width={target === 'home' ? 156 : 115}
+                height={target === 'home' ? 164 : 77}
                 alt=""
               />
             </span>
-            <span>{label}</span>
           </button>
         ))}
       </div>
