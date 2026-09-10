@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { HostEmbedController } from '@kampi/game-sdk/embed';
+import { LobbyHeader, LobbyNavigation, type LobbyView } from '../components/LobbyChrome';
+import { LobbyHome } from '../components/LobbyHome';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const TOKEN_KEY = 'kampi.authToken';
@@ -63,6 +65,16 @@ type MatchHistory = {
 
 type AuthMode = 'login' | 'register' | 'claim';
 
+async function request(url: string, options: Parameters<typeof fetch>[1] = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function readStoredToken(): string {
   try {
     return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY) ?? '';
@@ -107,8 +119,12 @@ function emptyStats(): PlayerStats {
 }
 
 export default function HomePage() {
-  const [view, setView] = useState<'home' | 'rankings' | 'history' | 'account'>('home');
+  const [view, setView] = useState<LobbyView>('home');
   const bootstrapped = useRef(false);
+  const bootstrapBusy = useRef(false);
+  const sessionEpoch = useRef(0);
+  const focusAfterNavigation = useRef(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [player, setPlayer] = useState<Player | null>(null);
   const [token, setToken] = useState('');
   const [games, setGames] = useState<GameCard[]>([]);
@@ -144,7 +160,7 @@ export default function HomePage() {
   );
 
   useEffect(() => {
-    if (!token || !games.length || restoredGame.current) return;
+    if (!token || !player || !games.length || restoredGame.current) return;
     restoredGame.current = true;
     try {
       const slug = sessionStorage.getItem('kampi.activeGame');
@@ -153,7 +169,7 @@ export default function HomePage() {
     } catch {
       /* optional storage */
     }
-  }, [token, games]);
+  }, [token, player, games]);
 
   useEffect(() => {
     if (!token) return;
@@ -163,7 +179,7 @@ export default function HomePage() {
       void loadHistory(token);
       void loadLeaderboard().catch(() => undefined);
     };
-    refresh();
+    void loadHistory(token);
     const timer = window.setInterval(refresh, 15000);
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);
@@ -176,7 +192,7 @@ export default function HomePage() {
 
   async function loadHistory(authToken: string) {
     try {
-      const res = await fetch(`${API_URL}/matches/history?limit=30`, {
+      const res = await request(`${API_URL}/matches/history?limit=30`, {
         headers: { Authorization: `Bearer ${authToken}` },
         cache: 'no-store',
       });
@@ -218,101 +234,162 @@ export default function HomePage() {
     controller.sendSession(tokenRef.current, playerRef.current?.id);
   }
 
-  async function applySession(authToken: string) {
+  async function applySession(authToken: string, epoch = sessionEpoch.current) {
+    if (epoch !== sessionEpoch.current) return false;
+    if (tokenRef.current !== authToken) setPlayer(null);
     storeToken(authToken);
     setToken(authToken);
     tokenRef.current = authToken;
-    const loaded = await refreshPlayer(authToken);
+    const loaded = await refreshPlayer(authToken, epoch);
     return loaded;
   }
 
-  async function refreshPlayer(authToken: string): Promise<boolean> {
+  async function refreshPlayer(authToken: string, epoch = sessionEpoch.current): Promise<boolean> {
     if (!authToken) return false;
-    const playerRes = await fetch(`${API_URL}/players/me`, {
+    const playerRes = await request(`${API_URL}/players/me`, {
       headers: { Authorization: `Bearer ${authToken}` },
     });
-    if (!playerRes.ok) return false;
+    if (playerRes.status === 401 || playerRes.status === 403) return false;
+    if (!playerRes.ok) throw new Error('Your account is temporarily unavailable.');
     const latest = (await playerRes.json()) as Player;
-    if (tokenRef.current === authToken) setPlayer(latest);
+    if (tokenRef.current !== authToken || epoch !== sessionEpoch.current) return false;
+    setPlayer(latest);
     return true;
   }
 
   async function loadCatalog() {
-    const [gamesRes, healthRes, authConfigRes] = await Promise.all([
-      fetch(`${API_URL}/games`),
-      fetch(`${API_URL}/health/live`),
-      fetch(`${API_URL}/auth/config`),
+    setCatalogLoading(true);
+    let guestsOn = false;
+    let catalogOk = false;
+    await Promise.allSettled([
+      request(`${API_URL}/games`).then(async (res) => {
+        if (!res.ok) throw new Error('Catalog unavailable');
+        const body = (await res.json()) as { games: GameCard[] };
+        setGames(
+          body.games.map((game) => ({
+            ...game,
+            clientUrl:
+              (game.slug === 'penalty-duel'
+                ? process.env.NEXT_PUBLIC_GAME_PENALTY_URL
+                : game.slug === 'rock-paper-scissors'
+                  ? process.env.NEXT_PUBLIC_GAME_RPS_URL
+                  : undefined) || game.clientUrl,
+          })),
+        );
+        catalogOk = true;
+      }),
+      request(`${API_URL}/auth/config`).then(async (res) => {
+        if (!res.ok) return;
+        const config = (await res.json()) as { guestAuthEnabled: boolean };
+        guestsOn = config.guestAuthEnabled;
+        setGuestAvailable(guestsOn);
+      }),
     ]);
-    if (gamesRes.ok) {
-      const body = (await gamesRes.json()) as { games: GameCard[] };
-      setGames(
-        body.games.map((game) => ({
-          ...game,
-          clientUrl:
-            (game.slug === 'penalty-duel'
-              ? process.env.NEXT_PUBLIC_GAME_PENALTY_URL
-              : process.env.NEXT_PUBLIC_GAME_RPS_URL) || game.clientUrl,
-        })),
-      );
-    }
-    setConnection(healthRes.ok ? 'online' : 'offline');
-    if (authConfigRes.ok) {
-      const config = (await authConfigRes.json()) as { guestAuthEnabled: boolean };
-      setGuestAvailable(config.guestAuthEnabled);
-      return config.guestAuthEnabled;
-    }
-    setGuestAvailable(false);
-    return false;
+    setCatalogLoading(false);
+    setConnection(catalogOk ? 'online' : 'offline');
+    return guestsOn;
   }
 
   async function loadLeaderboard() {
-    const res = await fetch(`${API_URL}/stats/leaderboard?period=weekly`);
+    const res = await request(`${API_URL}/stats/leaderboard?period=weekly`);
     if (!res.ok) return;
     const body = (await res.json()) as { boards: LeaderboardBoard[] };
     setBoards(body.boards);
   }
 
-  async function probeGuest(): Promise<boolean> {
-    const res = await fetch(`${API_URL}/auth/guest`, { method: 'POST' });
+  async function probeGuest(epoch = sessionEpoch.current): Promise<boolean> {
+    const res = await request(`${API_URL}/auth/guest`, { method: 'POST' });
     if (!res.ok) return false;
     const guest = (await res.json()) as { token: string };
-    return applySession(guest.token);
+    return applySession(guest.token, epoch);
   }
 
   async function bootstrap() {
+    if (bootstrapBusy.current) return;
+    bootstrapBusy.current = true;
+    const epoch = sessionEpoch.current;
+    // Public artwork/catalog render independently of authentication and rankings.
+    const catalog = loadCatalog();
+    void loadLeaderboard().catch(() => undefined);
     try {
-      const guestsOn = await loadCatalog();
-      await loadLeaderboard();
       const stored = readStoredToken();
-      if (stored && (await applySession(stored))) return;
+      if (stored && (await applySession(stored, epoch))) return;
+      if (epoch !== sessionEpoch.current) return;
       if (stored) {
         clearStoredToken();
         setToken('');
+        setPlayer(null);
         tokenRef.current = '';
       }
-      if (guestsOn) await probeGuest();
+      if ((await catalog) && epoch === sessionEpoch.current) await probeGuest(epoch);
     } catch {
-      setConnection('offline');
+      // A timeout or 5xx is not an invalid session. Keep it for the next retry.
+      await catalog;
+      if (epoch === sessionEpoch.current) setConnection('offline');
+    } finally {
+      await catalog;
+      bootstrapBusy.current = false;
     }
   }
 
+  useEffect(() => {
+    const recover = () => {
+      if (document.visibilityState === 'visible') void bootstrap();
+    };
+    const offline = () => setConnection('offline');
+    const visible = () => {
+      if (connection === 'offline') recover();
+    };
+    window.addEventListener('online', recover);
+    window.addEventListener('offline', offline);
+    document.addEventListener('visibilitychange', visible);
+    const timer = connection === 'offline' ? window.setInterval(recover, 15000) : undefined;
+    return () => {
+      window.removeEventListener('online', recover);
+      window.removeEventListener('offline', offline);
+      document.removeEventListener('visibilitychange', visible);
+      window.clearInterval(timer);
+    };
+  }, [connection]);
+
+  function navigate(next: LobbyView) {
+    if (activeGame) closeGame();
+    focusAfterNavigation.current = true;
+    setView(next);
+    if (next === 'history' && token) void loadHistory(token);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  useEffect(() => {
+    if (!focusAfterNavigation.current || activeGame) return;
+    focusAfterNavigation.current = false;
+    const heading = document.querySelector<HTMLElement>(
+      '.page-content section:not([hidden]) h1, .page-content section:not([hidden]) h2',
+    );
+    heading?.setAttribute('tabindex', '-1');
+    heading?.focus({ preventScroll: true });
+  }, [view, activeGame]);
+
   async function createGuest() {
+    const epoch = ++sessionEpoch.current;
     setAuthError('');
     setAuthBusy(true);
     try {
-      const ok = await probeGuest();
+      const ok = await probeGuest(epoch);
+      if (epoch !== sessionEpoch.current) return;
       if (!ok) {
         setAuthError('Guest play is disabled. Create an account to continue.');
       }
     } catch {
-      setAuthError('Could not create a guest session.');
+      if (epoch === sessionEpoch.current) setAuthError('Could not create a guest session.');
     } finally {
-      setAuthBusy(false);
+      if (epoch === sessionEpoch.current) setAuthBusy(false);
     }
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const epoch = ++sessionEpoch.current;
     setAuthError('');
     setAuthBusy(true);
     const form = new FormData(event.currentTarget);
@@ -329,7 +406,7 @@ export default function HomePage() {
     if (player?.isGuest && token) headers.Authorization = `Bearer ${token}`;
 
     try {
-      const res = await fetch(`${API_URL}${path}`, {
+      const res = await request(`${API_URL}${path}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -343,34 +420,40 @@ export default function HomePage() {
         body && typeof body === 'object' && 'token' in body && typeof body.token === 'string'
           ? body.token
           : null;
+      if (epoch !== sessionEpoch.current) return;
       if (!res.ok || !tokenValue) {
         setAuthError(apiErrorMessage(body, 'Authentication failed'));
         return;
       }
-      await applySession(tokenValue);
-      await loadLeaderboard();
+      if (!(await applySession(tokenValue, epoch))) return;
+      void loadLeaderboard().catch(() => undefined);
+      if (epoch !== sessionEpoch.current) return;
       setAuthMode('login');
       setView('home');
     } catch {
-      setAuthError('Could not reach the API.');
+      if (epoch === sessionEpoch.current) setAuthError('Could not reach the API.');
     } finally {
-      setAuthBusy(false);
+      if (epoch === sessionEpoch.current) setAuthBusy(false);
     }
   }
 
   async function logout() {
-    if (token) {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => undefined);
-    }
+    const previousToken = tokenRef.current;
+    ++sessionEpoch.current;
     clearStoredToken();
+    closeGame();
     setToken('');
     tokenRef.current = '';
     setHistory([]);
     setPlayer(null);
+    setAuthBusy(false);
     setAuthMode('login');
+    if (previousToken) {
+      await request(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${previousToken}` },
+      }).catch(() => undefined);
+    }
   }
 
   function openGame(game: GameCard) {
@@ -406,33 +489,7 @@ export default function HomePage() {
 
   return (
     <main className="app-shell">
-      <header className="header">
-        <button
-          className="brand"
-          onClick={() => {
-            if (activeGame) closeGame();
-            setView('home');
-          }}
-          aria-label="Kampi home"
-        >
-          <span className="brand-mark">K</span>
-          <span>
-            Kampi<span className="brand-suffix">.fun</span>
-          </span>
-        </button>
-        <button
-          className="wallet-pill"
-          onClick={() => {
-            if (activeGame) closeGame();
-            setView('account');
-          }}
-          aria-label="Open account and balance"
-        >
-          <span className="chip-icon">K</span>
-          {player ? BigInt(player.balance).toLocaleString() : 'Sign in'}
-          <span className="wallet-label">{player ? 'chips' : 'to play'}</span>
-        </button>
-      </header>
+      <LobbyHeader balance={player?.balance ?? null} onNavigate={navigate} />
 
       {activeGame ? (
         <section className="play-layout" aria-label={`${activeGame.name} session`}>
@@ -485,244 +542,209 @@ export default function HomePage() {
         </section>
       ) : (
         <>
-          <section className="account-panel" hidden={view !== 'account'} aria-label="Your account">
-            <div className="section-heading">
-              <h2>Your account</h2>
-              <span>Keep your progress</span>
-            </div>
-            <div className="grid-2" style={{ marginTop: 12 }}>
-              <AuthCard
-                player={player}
-                guestAvailable={guestAvailable}
-                authMode={player?.isGuest ? 'claim' : authMode}
-                authError={authError}
-                authBusy={authBusy}
-                onModeChange={setAuthMode}
-                onSubmit={(event) => void submitAuth(event)}
-                onGuest={() => void createGuest()}
-                onLogout={() => void logout()}
-              />
-              <ProgressionCard stats={stats} />
-            </div>
-          </section>
-
-          <section hidden={view !== 'home'} aria-label="Game lobby">
-            <div className="hero">
-              <div>
-                <span className="eyebrow">QUICK GAMES. REAL RIVALRIES.</span>
-                <h2>
-                  Your next win
-                  <br />
-                  starts here.
-                </h2>
-                <p>One opponent. A few minutes. All you.</p>
-                <button onClick={() => setView(player ? 'rankings' : 'account')}>
-                  {player ? 'View rankings' : 'Start playing'} <span aria-hidden="true">↗</span>
-                </button>
+          <div className="page-content">
+            <section
+              className="account-panel"
+              hidden={view !== 'account'}
+              aria-label="Your account"
+            >
+              <div className="section-heading">
+                <h2>Your account</h2>
+                <span>Keep your progress</span>
               </div>
-              <div className="hero-emblem" aria-hidden="true">
-                K<span>1 v 1</span>
-              </div>
-            </div>
-            <div className="activity-strip">
-              <span>
-                <i className={connection === 'online' ? 'online-dot' : 'offline-dot'} />
-                {connection === 'online'
-                  ? 'Arena online'
-                  : connection === 'checking'
-                    ? 'Connecting…'
-                    : 'Arena offline'}
-              </span>
-              <span>Level {stats.level}</span>
-              <span>{stats.wins} wins</span>
-            </div>
-            <div className="section-heading">
-              <h2>
-                1v1 Games <span className="heading-dot">✦</span>
-              </h2>
-              <span>{games.length} games</span>
-            </div>
-            {connection === 'offline' ? (
-              <p className="empty-state">
-                The arena is temporarily unavailable.{' '}
-                <button
-                  onClick={() => {
-                    setConnection('checking');
-                    void bootstrap();
-                  }}
-                >
-                  Retry connection
-                </button>
-              </p>
-            ) : null}
-            <div className="game-grid">
-              {games.map((game) => (
-                <article
-                  key={game.id}
-                  className={`game-card ${game.slug === 'penalty-duel' ? 'penalty-card' : 'rps-card'}`}
-                >
-                  <div className="game-art" aria-hidden="true">
-                    <span className="game-badge">
-                      {game.slug === 'penalty-duel' ? 'SPOTLIGHT' : 'CLASSIC'}
-                    </span>
-                    <div className="placeholder-art">
-                      {game.slug === 'penalty-duel' ? '⚽' : '✊ ✋ ✌'}
-                    </div>
-                    <span className="art-caption">
-                      {game.slug === 'penalty-duel' ? 'READ THE SHOT' : 'MAKE YOUR MOVE'}
-                    </span>
-                  </div>
-                  <div className="game-card-body">
-                    <h3>{game.name}</h3>
-                    <p className="game-description">
-                      {game.slug === 'penalty-duel'
-                        ? 'Shoot. Save. Outplay your rival.'
-                        : 'Three choices. One winner.'}
-                    </p>
-                    <p className="game-economy">
-                      ◈ {BigInt(game.entryFee).toLocaleString()} entry{' '}
-                      <span>Win {BigInt(game.winnerPayout).toLocaleString()}</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => (player ? openGame(game) : setView('account'))}
-                      style={{ marginTop: 8 }}
-                      className="play-button"
-                    >
-                      {player ? 'Play now' : 'Sign in to play'} <span aria-hidden="true">↗</span>
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="card rankings" hidden={view !== 'rankings'}>
-            <div className="section-heading">
-              <h2>Weekly rankings</h2>
-              <span>Top players</span>
-            </div>
-            <p className="muted">Win duels. Climb the board. A new race every week.</p>
-            {boards.length === 0 ? (
-              <p>No ranked matches yet this week.</p>
-            ) : (
               <div className="grid-2" style={{ marginTop: 12 }}>
-                {boards.map((board) => (
-                  <article key={board.gameSlug}>
-                    <h3>{board.gameName}</h3>
-                    {board.entries.length === 0 ? (
-                      <p>No wins recorded yet.</p>
-                    ) : (
-                      <ol className="leaderboard-list">
-                        {board.entries.map((entry) => (
-                          <li key={entry.userId}>
-                            <span>
-                              {entry.rank}. {entry.displayName}
-                            </span>
-                            <strong>{entry.score} wins</strong>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </article>
-                ))}
+                <AuthCard
+                  player={player}
+                  guestAvailable={guestAvailable}
+                  authMode={player?.isGuest ? 'claim' : authMode}
+                  authError={authError}
+                  authBusy={authBusy}
+                  onModeChange={setAuthMode}
+                  onSubmit={(event) => void submitAuth(event)}
+                  onGuest={() => void createGuest()}
+                  onLogout={() => void logout()}
+                />
+                <ProgressionCard stats={stats} />
               </div>
+            </section>
+
+            {view === 'home' && (
+              <LobbyHome
+                games={games}
+                boards={boards}
+                connection={connection}
+                loading={catalogLoading}
+                playerReady={!!player}
+                onPlay={(game) => (player ? openGame(game) : navigate('account'))}
+                onRewards={() => navigate('rewards')}
+                onRankings={() => navigate('rankings')}
+                onRetry={() => {
+                  setConnection('checking');
+                  void bootstrap();
+                }}
+              />
             )}
-          </section>
-          <section
-            className="card match-history"
-            hidden={view !== 'history'}
-            aria-label="Previous matches"
-          >
-            <div className="section-heading">
-              <h2>Previous matches</h2>
-              <button
-                className="ghost-button"
-                disabled={!token}
-                onClick={() => void loadHistory(token)}
-              >
-                Refresh
-              </button>
-            </div>
-            <p className="muted">
-              Your latest duels, scores and results. Updated after every match.
-            </p>
-            {historyError ? <p role="status">{historyError}</p> : null}
-            {!player ? (
-              <p>Sign in to see your matches.</p>
-            ) : history.length === 0 ? (
-              <p>No matches yet. Your first duel will appear here.</p>
-            ) : (
-              <ol className="history-list">
-                {history.map((match) => (
-                  <li key={match.matchId}>
-                    <div>
-                      <strong>{match.gameName}</strong>
-                      <span>
-                        vs {match.opponent}
-                        {match.botFill ? ' · BOT' : ''}
-                      </span>
-                      <time dateTime={match.createdAt}>
-                        {new Date(match.createdAt).toLocaleString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </time>
-                    </div>
-                    <div className="history-result">
-                      <strong>
-                        {match.score} – {match.opponentScore}
-                      </strong>
-                      <span data-result={match.result}>
-                        {match.result ??
-                          (match.status === 'FINISHED'
-                            ? 'Updating result…'
-                            : match.status === 'ABORTED'
-                              ? 'Cancelled'
-                              : 'In progress')}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+
+            {view === 'rewards' && (
+              <section className="rewards-page" aria-labelledby="rewards-heading">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">EVERY DUEL COUNTS</span>
+                    <h2 id="rewards-heading">Your rewards</h2>
+                  </div>
+                  <img src="/art/lobby/reward-badge-112.webp" width="112" height="122" alt="" />
+                </div>
+                <p className="muted">
+                  Keep playing. Earn XP from completed duels and grow your game level.
+                </p>
+                <div className="reward-summary">
+                  <div>
+                    <span>YOUR LEVEL</span>
+                    <strong>{stats.level}</strong>
+                  </div>
+                  <div>
+                    <span>TOTAL XP</span>
+                    <strong>{stats.xp.toLocaleString()}</strong>
+                  </div>
+                  <div>
+                    <span>DUELS WON</span>
+                    <strong>{stats.wins}</strong>
+                  </div>
+                </div>
+                <div className="grid-2">
+                  {stats.games.length ? (
+                    stats.games.map((game) => (
+                      <ProgressionCard key={game.gameSlug} stats={stats} game={game} />
+                    ))
+                  ) : (
+                    <p className="empty-state">
+                      Your first duel starts your progression. Pick a game and make your move.
+                    </p>
+                  )}
+                </div>
+                <button
+                  className="reward-button"
+                  onClick={() => navigate(player ? 'home' : 'account')}
+                >
+                  {player ? 'Find your next duel' : 'Sign in to start'}
+                </button>
+              </section>
             )}
-          </section>
-          <p className="lobby-note">
-            Made for a quick break. Played for the bragging rights.
-            <br />
-            <span>Virtual chips only · No cash-out</span>
-          </p>
-          <nav className="bottom-nav" aria-label="Primary navigation">
-            <button
-              aria-current={view === 'home' ? 'page' : undefined}
-              onClick={() => setView('home')}
+            {view === 'shop' && (
+              <section className="card shop-page" aria-labelledby="shop-heading">
+                <img src="/art/lobby/coin-78.webp" width="78" height="78" alt="" />
+                <span className="eyebrow">SOMETHING GOOD IS ON THE WAY</span>
+                <h2 id="shop-heading">The Kampi shop</h2>
+                <p>
+                  The shop is coming soon. For now, take your chips into the arena and play for the
+                  win.
+                </p>
+                {player && (
+                  <p className="shop-balance">
+                    Your balance <strong>{BigInt(player.balance).toLocaleString()} chips</strong>
+                  </p>
+                )}
+                <button className="reward-button" onClick={() => navigate('home')}>
+                  Back to battle <span aria-hidden="true">↗</span>
+                </button>
+              </section>
+            )}
+
+            <section className="card rankings" hidden={view !== 'rankings'}>
+              <div className="section-heading">
+                <h2>Weekly rankings</h2>
+                <span>Top players</span>
+              </div>
+              <p className="muted">Win duels. Climb the board. A new race every week.</p>
+              {boards.length === 0 ? (
+                <p>No ranked matches yet this week.</p>
+              ) : (
+                <div className="grid-2" style={{ marginTop: 12 }}>
+                  {boards.map((board) => (
+                    <article key={board.gameSlug}>
+                      <h3>{board.gameName}</h3>
+                      {board.entries.length === 0 ? (
+                        <p>No wins recorded yet.</p>
+                      ) : (
+                        <ol className="leaderboard-list">
+                          {board.entries.map((entry) => (
+                            <li key={entry.userId}>
+                              <span>
+                                {entry.rank}. {entry.displayName}
+                              </span>
+                              <strong>{entry.score} wins</strong>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+            <section
+              className="card match-history"
+              hidden={view !== 'history'}
+              aria-label="Previous matches"
             >
-              <span aria-hidden="true">⌂</span>Home
-            </button>
-            <button
-              aria-current={view === 'rankings' ? 'page' : undefined}
-              onClick={() => setView('rankings')}
-            >
-              <span aria-hidden="true">♜</span>Rankings
-            </button>
-            <button
-              aria-current={view === 'history' ? 'page' : undefined}
-              onClick={() => {
-                setView('history');
-                if (token) void loadHistory(token);
-              }}
-            >
-              <span aria-hidden="true">◷</span>History
-            </button>
-            <button
-              aria-current={view === 'account' ? 'page' : undefined}
-              onClick={() => setView('account')}
-            >
-              <span aria-hidden="true">◎</span>Account
-            </button>
-          </nav>
+              <div className="section-heading">
+                <h2>Previous matches</h2>
+                <button
+                  className="ghost-button"
+                  disabled={!token}
+                  onClick={() => void loadHistory(token)}
+                >
+                  Refresh
+                </button>
+              </div>
+              <p className="muted">
+                Your latest duels, scores and results. Updated after every match.
+              </p>
+              {historyError ? <p role="status">{historyError}</p> : null}
+              {!player ? (
+                <p>Sign in to see your matches.</p>
+              ) : history.length === 0 ? (
+                <p>No matches yet. Your first duel will appear here.</p>
+              ) : (
+                <ol className="history-list">
+                  {history.map((match) => (
+                    <li key={match.matchId}>
+                      <div>
+                        <strong>{match.gameName}</strong>
+                        <span>
+                          vs {match.opponent}
+                          {match.botFill ? ' · BOT' : ''}
+                        </span>
+                        <time dateTime={match.createdAt}>
+                          {new Date(match.createdAt).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </time>
+                      </div>
+                      <div className="history-result">
+                        <strong>
+                          {match.score} – {match.opponentScore}
+                        </strong>
+                        <span data-result={match.result}>
+                          {match.result ??
+                            (match.status === 'FINISHED'
+                              ? 'Updating result…'
+                              : match.status === 'ABORTED'
+                                ? 'Cancelled'
+                                : 'In progress')}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+            {view !== 'home' && <p className="lobby-note">Virtual chips only · No cash-out</p>}
+          </div>
+          <LobbyNavigation view={view} onNavigate={navigate} />
         </>
       )}
     </main>
@@ -738,7 +760,7 @@ function ProgressionCard({
 }) {
   return (
     <div className="card sidebar-card">
-      <h2>Progression</h2>
+      <h2>{game?.gameName ?? 'Progression'}</h2>
       <dl className="stat-list">
         <div>
           <dt>Level</dt>

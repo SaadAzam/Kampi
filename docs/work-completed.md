@@ -683,3 +683,11 @@ pnpm db:seed
 7. Optional: `pnpm test:e2e` with API + realtime + Penalty client running.
 
 **Seeded single-player shortcut:** `Authorization: Bearer dev-guest-token-kampi-local-only` — 10,000 chips. Use only for one player.
+
+---
+
+## 28. Responsive artwork-based lobby — 10 September 2026
+
+The mobile and desktop lobby now uses optimized supplied artwork, new RPS/desktop penalty art, responsive metallic panels and navigation, reduced-motion-aware CSS animations, and live catalog/balance/leaderboard data. Existing account, history and game-session behavior is preserved, with improved startup and transient-failure recovery.
+
+See [lobby implementation and validation](lobby-redesign-2026-09-10.md) for asset budgets, provenance and the 28 passing Chromium/WebKit browser checks. The earlier Railway source-snapshot failure has a separate [deployment recovery change](railway-snapshot-fix-2026-09-10.md). These changes remain local for owner review and commit. Earlier historical gap lists in this document should be read alongside the later dated deployment and demo reports.

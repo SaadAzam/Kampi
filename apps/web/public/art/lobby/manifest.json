@@ -1,0 +1,308 @@
+[
+  {
+    "name": "penalty-action",
+    "width": 240,
+    "height": 143,
+    "alpha": true,
+    "description": "Goalkeeper and ball illustration; no text or card footer.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/penalty-action-240.webp",
+        "bytes": 14324
+      },
+      "avif": {
+        "file": "/art/lobby/penalty-action-240.avif",
+        "bytes": 10093
+      }
+    }
+  },
+  {
+    "name": "penalty-action",
+    "width": 384,
+    "height": 229,
+    "alpha": true,
+    "description": "Goalkeeper and ball illustration; no text or card footer.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/penalty-action-384.webp",
+        "bytes": 31560
+      },
+      "avif": {
+        "file": "/art/lobby/penalty-action-384.avif",
+        "bytes": 22465
+      }
+    }
+  },
+  {
+    "name": "logo",
+    "width": 247,
+    "height": 45,
+    "alpha": true,
+    "description": "KAMPI.fun wordmark. Text is intrinsic to the logo.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/logo-247.webp",
+        "bytes": 7736
+      },
+      "avif": {
+        "file": "/art/lobby/logo-247.avif",
+        "bytes": 4056
+      }
+    }
+  },
+  {
+    "name": "reward-badge",
+    "width": 112,
+    "height": 122,
+    "alpha": true,
+    "description": "Gold K reward crest with transparent edges.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/reward-badge-112.webp",
+        "bytes": 7124
+      },
+      "avif": {
+        "file": "/art/lobby/reward-badge-112.avif",
+        "bytes": 4885
+      }
+    }
+  },
+  {
+    "name": "reward-badge",
+    "width": 223,
+    "height": 243,
+    "alpha": true,
+    "description": "Gold K reward crest with transparent edges.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/reward-badge-223.webp",
+        "bytes": 18344
+      },
+      "avif": {
+        "file": "/art/lobby/reward-badge-223.avif",
+        "bytes": 12623
+      }
+    }
+  },
+  {
+    "name": "coin",
+    "width": 40,
+    "height": 39,
+    "alpha": true,
+    "description": "Blue and gold K coin; no amount baked in.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/coin-40.webp",
+        "bytes": 1976
+      },
+      "avif": {
+        "file": "/art/lobby/coin-40.avif",
+        "bytes": 1636
+      }
+    }
+  },
+  {
+    "name": "coin",
+    "width": 78,
+    "height": 77,
+    "alpha": true,
+    "description": "Blue and gold K coin; no amount baked in.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/coin-78.webp",
+        "bytes": 3562
+      },
+      "avif": {
+        "file": "/art/lobby/coin-78.avif",
+        "bytes": 2593
+      }
+    }
+  },
+  {
+    "name": "nav-battle",
+    "width": 80,
+    "height": 81,
+    "alpha": true,
+    "description": "Crossed swords medallion with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-battle-80.webp",
+        "bytes": 5300
+      },
+      "avif": {
+        "file": "/art/lobby/nav-battle-80.avif",
+        "bytes": 3741
+      }
+    }
+  },
+  {
+    "name": "nav-battle",
+    "width": 156,
+    "height": 157,
+    "alpha": true,
+    "description": "Crossed swords medallion with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-battle-156.webp",
+        "bytes": 9280
+      },
+      "avif": {
+        "file": "/art/lobby/nav-battle-156.avif",
+        "bytes": 6290
+      }
+    }
+  },
+  {
+    "name": "nav-edit",
+    "width": 58,
+    "height": 57,
+    "alpha": true,
+    "description": "Cyan edit icon with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-edit-58.webp",
+        "bytes": 2038
+      },
+      "avif": {
+        "file": "/art/lobby/nav-edit-58.avif",
+        "bytes": 1283
+      }
+    }
+  },
+  {
+    "name": "nav-leaderboard",
+    "width": 58,
+    "height": 57,
+    "alpha": true,
+    "description": "Cyan trophy icon with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-leaderboard-58.webp",
+        "bytes": 2080
+      },
+      "avif": {
+        "file": "/art/lobby/nav-leaderboard-58.avif",
+        "bytes": 1363
+      }
+    }
+  },
+  {
+    "name": "nav-shop",
+    "width": 58,
+    "height": 57,
+    "alpha": true,
+    "description": "Coral cart icon with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-shop-58.webp",
+        "bytes": 2058
+      },
+      "avif": {
+        "file": "/art/lobby/nav-shop-58.avif",
+        "bytes": 1588
+      }
+    }
+  },
+  {
+    "name": "nav-profile",
+    "width": 58,
+    "height": 57,
+    "alpha": true,
+    "description": "Coral profile icon with alpha; no label.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/nav-profile-58.webp",
+        "bytes": 1166
+      },
+      "avif": {
+        "file": "/art/lobby/nav-profile-58.avif",
+        "bytes": 1078
+      }
+    }
+  },
+  {
+    "name": "player-frame-blue",
+    "width": 257,
+    "height": 93,
+    "alpha": true,
+    "description": "Empty blue player frame; no avatar or text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/player-frame-blue-257.webp",
+        "bytes": 3990
+      },
+      "avif": {
+        "file": "/art/lobby/player-frame-blue-257.avif",
+        "bytes": 2731
+      }
+    }
+  },
+  {
+    "name": "player-frame-red",
+    "width": 257,
+    "height": 93,
+    "alpha": true,
+    "description": "Empty red player frame; no avatar or text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/player-frame-red-257.webp",
+        "bytes": 3924
+      },
+      "avif": {
+        "file": "/art/lobby/player-frame-red-257.avif",
+        "bytes": 2929
+      }
+    }
+  },
+  {
+    "name": "player-frame-purple",
+    "width": 257,
+    "height": 93,
+    "alpha": true,
+    "description": "Empty purple player frame; no avatar or text.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/player-frame-purple-257.webp",
+        "bytes": 4018
+      },
+      "avif": {
+        "file": "/art/lobby/player-frame-purple-257.avif",
+        "bytes": 2886
+      }
+    }
+  },
+  {
+    "name": "background",
+    "width": 450,
+    "height": 720,
+    "alpha": false,
+    "description": "Dark arena background; no text or UI.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/background-450.webp",
+        "bytes": 2684
+      },
+      "avif": {
+        "file": "/art/lobby/background-450.avif",
+        "bytes": 2137
+      }
+    }
+  },
+  {
+    "name": "background",
+    "width": 900,
+    "height": 1440,
+    "alpha": false,
+    "description": "Dark arena background; no text or UI.",
+    "variants": {
+      "webp": {
+        "file": "/art/lobby/background-900.webp",
+        "bytes": 7148
+      },
+      "avif": {
+        "file": "/art/lobby/background-900.avif",
+        "bytes": 4296
+      }
+    }
+  }
+]

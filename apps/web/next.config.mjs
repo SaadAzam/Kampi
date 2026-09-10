@@ -7,6 +7,12 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/art/lobby/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
+      },
+      {
         source: '/',
         headers: [{ key: 'Cache-Control', value: 'no-store, must-revalidate' }],
       },

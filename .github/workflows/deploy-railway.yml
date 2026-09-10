@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: railway-production
   cancel-in-progress: false
@@ -12,30 +15,24 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 50
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
 
+      - name: Test deployment recovery
+        run: node --test scripts/deploy-railway.test.mjs
+
       - name: Install Railway CLI
-        run: npm i -g @railway/cli@5.2.0
+        run: npm i -g @railway/cli@5.49.5
 
       - name: Deploy services
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          if [ -z "$RAILWAY_API_TOKEN" ]; then
-            echo "Missing repo secret RAILWAY_TOKEN. Add it at Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          project=74c72010-d4cf-412f-a1df-07a2dc05ec4d
-          environment=836d08e4-332b-47f5-9d0f-8f4b647e758a
-          sha="${GITHUB_SHA:0:7}"
-          for service in api realtime web admin game-rps game-penalty; do
-            echo "::group::railway up ${service}"
-            railway up --service "$service" --project "$project" --environment "$environment" --detach --message "github ${sha}"
-            echo "::endgroup::"
-          done
+        run: node scripts/deploy-railway.mjs

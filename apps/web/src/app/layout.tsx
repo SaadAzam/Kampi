@@ -5,11 +5,12 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Kampi.fun',
-  description: 'Lightweight 1v1 HTML5 games platform',
+  description:
+    'One opponent. One moment. Play Penalty Duel and Rock Paper Scissors, earn XP, and climb the Kampi leaderboard.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Kampi',
   },
 };
@@ -17,7 +18,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0f172a',
+  themeColor: '#030f1b',
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
