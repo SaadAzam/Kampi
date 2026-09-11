@@ -287,7 +287,7 @@ export class PenaltyDuelRoom extends Room {
             payload: { seat, userId: player.userId },
           },
         })
-        .catch((error) => console.error('Reconnect audit failed', error));
+        .catch((error: unknown) => console.error('Reconnect audit failed', error));
     } catch {
       if (this.isTerminal()) return;
       player.connected = false;
@@ -437,7 +437,7 @@ export class PenaltyDuelRoom extends Room {
           payload: { seat, role, commandId, turnId: this.activeTurnId },
         },
       })
-      .catch((error) => console.error('Penalty audit failed', error));
+      .catch((error: unknown) => console.error('Penalty audit failed', error));
 
     this.broadcastSnapshot();
 
@@ -494,7 +494,7 @@ export class PenaltyDuelRoom extends Room {
           payload: revealed,
         },
       })
-      .catch((error) => console.error('Penalty audit failed', error));
+      .catch((error: unknown) => console.error('Penalty audit failed', error));
 
     this.broadcast('turn_revealed', revealed);
     this.broadcastSnapshot();

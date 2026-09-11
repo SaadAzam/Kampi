@@ -86,9 +86,6 @@ function gameFrame(slug: string) {
           window.receivedSession = event.data;
           document.querySelector('[data-testid="session-player"]').textContent = event.data.playerId;
         }
-        if (event.data.type === 'host_ready') {
-          parent.postMessage({type:'game_ready', protocolVersion:'1.0.0', gameSlug:${JSON.stringify(slug)}}, parentOrigin);
-        }
       });
       parent.postMessage({type:'game_ready', protocolVersion:'1.0.0', gameSlug:${JSON.stringify(slug)}}, parentOrigin);
     </script></body></html>`;
@@ -106,6 +103,7 @@ async function mockBackend(context: BrowserContext) {
     loginPosts: 0,
     historyReads: 0,
     guestPosts: 0,
+    gameResponseDelayMs: 0,
     unexpectedRequests: [] as string[],
   };
   await context.addInitScript((token) => {
@@ -117,6 +115,8 @@ async function mockBackend(context: BrowserContext) {
     if (url.origin === new URL(WEB_URL).origin) return route.continue();
     const game = catalog.find((entry) => new URL(entry.clientUrl).origin === url.origin);
     if (game) {
+      if (backend.gameResponseDelayMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, backend.gameResponseDelayMs));
       return route.fulfill({ contentType: 'text/html', body: gameFrame(game.slug) });
     }
     if (url.origin !== API_ORIGIN) {
@@ -588,6 +588,25 @@ test('penalty iframe receives the saved session and restores after page reload',
   await expect(page.frameLocator('#game-frame').getByTestId('session-player')).toHaveText(
     PLAYER_ID,
   );
+  expect(backend.unexpectedRequests).toEqual([]);
+});
+
+test('slow penalty iframe shows useful progress instead of a blank panel', async ({
+  context,
+  page,
+}) => {
+  const backend = await mockBackend(context);
+  backend.gameResponseDelayMs = 6500;
+  await openLobby(page);
+  await page.getByRole('button', { name: 'Play Penalty Duel', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Loading Penalty Duel');
+  await expect(page.getByRole('status')).toContainText('Slower connection detected', {
+    timeout: 6200,
+  });
+  await expect(page.frameLocator('#game-frame').getByTestId('session-player')).toHaveText(
+    PLAYER_ID,
+  );
+  await expect(page.getByRole('status')).toHaveCount(0);
   expect(backend.unexpectedRequests).toEqual([]);
 });
 

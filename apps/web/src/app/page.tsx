@@ -64,6 +64,7 @@ type MatchHistory = {
 };
 
 type AuthMode = 'login' | 'register' | 'claim';
+type GameFrameState = 'loading' | 'slow' | 'ready' | 'error';
 
 async function request(url: string, options: Parameters<typeof fetch>[1] = {}) {
   const controller = new AbortController();
@@ -136,6 +137,7 @@ export default function HomePage() {
   const [guestAvailable, setGuestAvailable] = useState(false);
   const [activeGame, setActiveGame] = useState<GameCard | null>(null);
   const [embedMessage, setEmbedMessage] = useState('');
+  const [gameFrameState, setGameFrameState] = useState<GameFrameState>('loading');
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [authError, setAuthError] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
@@ -158,6 +160,26 @@ export default function HomePage() {
     },
     [activeGame],
   );
+
+  useEffect(() => {
+    if (!activeGame) return;
+    setGameFrameState('loading');
+    const slowTimer = window.setTimeout(
+      () => setGameFrameState((current) => (current === 'loading' ? 'slow' : current)),
+      6000,
+    );
+    const errorTimer = window.setTimeout(
+      () =>
+        setGameFrameState((current) =>
+          current === 'loading' || current === 'slow' ? 'error' : current,
+        ),
+      30000,
+    );
+    return () => {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(errorTimer);
+    };
+  }, [activeGame]);
 
   useEffect(() => {
     if (!token || !player || !games.length || restoredGame.current) return;
@@ -218,8 +240,10 @@ export default function HomePage() {
       targetOrigin: origin,
       allowedOrigins: [origin],
       onMessage: (message) => {
-        if (message.type === 'game_ready')
+        if (message.type === 'game_ready') {
+          setGameFrameState('ready');
           controller.sendSession(tokenRef.current, playerRef.current?.id);
+        }
         if (message.type === 'match_started') setEmbedMessage('Match in progress');
         if (message.type === 'match_completed') setEmbedMessage('Match complete');
         if (message.type === 'balance_changed' || message.type === 'match_completed') {
@@ -232,6 +256,15 @@ export default function HomePage() {
     embedRef.current = controller;
     controller.send({ type: 'host_ready', protocolVersion: '1.0.0' });
     controller.sendSession(tokenRef.current, playerRef.current?.id);
+  }
+
+  function handleFrameLoad() {
+    connectFrame();
+    // A fast embedded client can emit game_ready before the iframe load event,
+    // which is also when the host bridge is attached. Reaching load confirms
+    // the iframe document and all of its dependent assets are available, so it
+    // is a safe fallback for dismissing the loading cover.
+    setGameFrameState('ready');
   }
 
   async function applySession(authToken: string, epoch = sessionEpoch.current) {
@@ -484,6 +517,13 @@ export default function HomePage() {
     void loadLeaderboard().catch(() => undefined);
   }
 
+  function retryGameFrame() {
+    if (!activeGame) return;
+    const url = new URL(activeGame.clientUrl);
+    url.searchParams.set('v', Date.now().toString());
+    setActiveGame({ ...activeGame, clientUrl: url.toString() });
+  }
+
   const stats = player?.stats ?? emptyStats();
   const activeProgression = stats.games.find((game) => game.gameSlug === activeGame?.slug);
 
@@ -501,17 +541,50 @@ export default function HomePage() {
               <h2 className="play-title">{activeGame.name}</h2>
               {embedMessage ? <p className="embed-status">{embedMessage}</p> : null}
             </div>
-            <iframe
-              id="game-frame"
-              key={activeGame.clientUrl}
-              className="game-frame"
-              src={activeGame.clientUrl}
-              title={activeGame.name}
-              allow="fullscreen"
-              onLoad={connectFrame}
-              referrerPolicy="origin"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
-            />
+            <div
+              className="game-frame-shell"
+              aria-busy={gameFrameState === 'loading' || gameFrameState === 'slow'}
+            >
+              <iframe
+                id="game-frame"
+                key={activeGame.clientUrl}
+                className="game-frame"
+                src={activeGame.clientUrl}
+                title={activeGame.name}
+                allow="fullscreen"
+                onLoad={handleFrameLoad}
+                onError={() => setGameFrameState('error')}
+                referrerPolicy="origin"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+              />
+              {gameFrameState !== 'ready' ? (
+                <div
+                  className={`game-frame-feedback ${gameFrameState === 'error' ? 'is-error' : ''}`}
+                  role={gameFrameState === 'error' ? 'alert' : 'status'}
+                  aria-live="polite"
+                >
+                  {gameFrameState === 'error' ? (
+                    <>
+                      <strong>{activeGame.name} could not finish loading.</strong>
+                      <span>Check your connection, then try again.</span>
+                      <button type="button" onClick={retryGameFrame}>
+                        Retry game
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="game-loading-spinner" aria-hidden="true" />
+                      <strong>Loading {activeGame.name}…</strong>
+                      <span>
+                        {gameFrameState === 'slow'
+                          ? 'Slower connection detected. Keep this page open—we are still loading.'
+                          : 'Connecting securely to the arena.'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <aside className="play-sidebar" aria-label="Player stats">

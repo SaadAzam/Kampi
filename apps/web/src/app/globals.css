@@ -1070,6 +1070,52 @@ h3 {
   background: #030c18;
   display: block;
 }
+.game-frame-shell {
+  position: relative;
+}
+.game-frame-feedback {
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  border-radius: 11px;
+  background: radial-gradient(circle at 50% 42%, #153652 0, #071827 42%, #030c18 74%), #030c18;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: #b9cbe0;
+}
+.game-frame-feedback strong {
+  color: #f4f8ff;
+  font-size: 18px;
+}
+.game-frame-feedback span:not(.game-loading-spinner) {
+  max-width: 430px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.game-frame-feedback button {
+  margin-top: 6px;
+}
+.game-frame-feedback.is-error {
+  background: radial-gradient(circle at 50% 42%, #462834 0, #151524 44%, #030c18 76%), #030c18;
+}
+.game-loading-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid #31576a;
+  border-top-color: #78d5ff;
+  border-radius: 50%;
+  animation: game-loading-spin 0.9s linear infinite;
+}
+@keyframes game-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .play-sidebar {
   display: grid;
   gap: 18px;
